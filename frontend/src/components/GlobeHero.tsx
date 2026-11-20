@@ -1,15 +1,12 @@
-import React, { useRef, useState } from 'react'
+import React from 'react'
 import {
   Calendar,
   Play,
-  AlertTriangle,
   Shield,
-  Crosshair,
   CheckCircle,
   ChevronDown,
 } from 'lucide-react'
 import earthHeroImg from '../assets/earth-hero.jpg'
-import Earth3D from './Earth3D'
 
 interface GlobeHeroProps {
   onRunDetection: () => void
@@ -28,141 +25,125 @@ export const GlobeHero: React.FC<GlobeHeroProps> = ({
   mediumCount = 0,
   lowCount = 0,
 }) => {
-  const [use3D, setUse3D] = useState(true)
-  const [earth3DLoaded, setEarth3DLoaded] = useState(false)
-  const [parallax, setParallax] = useState({ x: 0, y: 0 })
-  const heroRef = useRef<HTMLElement>(null)
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLElement>) => {
-    if (!heroRef.current) return
-    const rect = heroRef.current.getBoundingClientRect()
-    const normX = (e.clientX - rect.left) / rect.width - 0.5
-    const normY = (e.clientY - rect.top) / rect.height - 0.5
-    setParallax({ x: normX, y: normY })
-  }
-
-  const handlePointerLeave = () => {
-    setParallax({ x: 0, y: 0 })
-  }
-
   return (
-    <section
-      ref={heroRef}
-      className="cg-hero"
-      aria-label="Defense Overview Header"
-      onPointerMove={handlePointerMove}
-      onPointerLeave={handlePointerLeave}
-    >
-      {/* Real Earth Photographic Visual from Space with 3D Animated Upgrade */}
+    <section className="cg-hero" aria-label="Defense Overview Header">
+      {/* Real Earth Photographic Visual from Space */}
       <div className="hero-earth-container" aria-hidden="true">
-        {/* Static Earth acts as immediate fallback / background while 3D initializes */}
         <img
           src={earthHeroImg}
           alt="Earth from Orbit"
           className="hero-earth-img"
-          style={{
-            opacity: earth3DLoaded ? 0 : 0.92,
-            transition: 'opacity 0.8s ease-in-out',
-          }}
         />
-
-        {use3D && (
-          <Earth3D
-            onLoaded={() => setEarth3DLoaded(true)}
-            onError={() => {
-              setUse3D(false)
-              setEarth3DLoaded(false)
-            }}
-            parallaxTarget={parallax}
-          />
-        )}
-
         <div className="hero-earth-overlay" />
       </div>
 
-      {/* Hero Content */}
       <div className="hero-content">
-        <div className="hero-eyebrow">Defense Overview</div>
-
-        <div className="hero-headline-row">
-          <div className="hero-text-block">
-            <h1 className="hero-heading">
-              Continuous defense<br />for your digital infrastructure.
-            </h1>
-            <p className="hero-subtext">
-              Observe • Understand • Simulate • Defend • Learn
-            </p>
+        {/* Left Column: Heading, Subtitle & Severity Counts */}
+        <div className="hero-text-col">
+          <div className="hero-eyebrow">
+            <span className="live-dot" />
+            <span className="eyebrow-text">AUTONOMOUS CYBER DEFENSE ACTIVE</span>
           </div>
 
-          {/* Action Controls */}
-          <div className="hero-actions">
-            <button type="button" className="hero-btn-secondary" title="Select time horizon">
-              <Calendar size={14} />
-              <span>{timeRange}</span>
-              <ChevronDown size={14} className="chevron" />
-            </button>
+          <h1 className="hero-title">
+            Predict. Protect. Respond.
+            <br />
+            <span className="hero-title-gradient">Before Threats Strike.</span>
+          </h1>
 
-            <button
-              type="button"
-              className="hero-btn-primary"
-              onClick={onRunDetection}
-              title="Launch scope-bound detection scan or NIDS check"
-            >
-              <Play size={13} fill="currentColor" />
-              <span>Run Detection</span>
-            </button>
+          <p className="hero-subtitle">
+            Autonomous threat forecasting, live digital twin simulation, and real-time defensive
+            orchestration for enterprise security operations.
+          </p>
+
+          {/* Severity Counters Strip with Visual Progress Bars */}
+          <div className="hero-severity-strip" role="region" aria-label="Incident Severity Counts">
+            <div className="hero-severity-item critical">
+              <div className="severity-item-top">
+                <span className="severity-dot" />
+                <span className="severity-label">CRITICAL</span>
+                <span className="severity-val mono">{criticalCount}</span>
+              </div>
+              <div className="severity-bar-track">
+                <div
+                  className="severity-bar-fill critical"
+                  style={{ width: `${Math.min(criticalCount * 20, 100)}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="hero-severity-item high">
+              <div className="severity-item-top">
+                <span className="severity-dot" />
+                <span className="severity-label">HIGH</span>
+                <span className="severity-val mono">{highCount}</span>
+              </div>
+              <div className="severity-bar-track">
+                <div
+                  className="severity-bar-fill high"
+                  style={{ width: `${Math.min(highCount * 12, 100)}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="hero-severity-item medium">
+              <div className="severity-item-top">
+                <span className="severity-dot" />
+                <span className="severity-label">MEDIUM</span>
+                <span className="severity-val mono">{mediumCount}</span>
+              </div>
+              <div className="severity-bar-track">
+                <div
+                  className="severity-bar-fill medium"
+                  style={{ width: `${Math.min(mediumCount * 8, 100)}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="hero-severity-item low">
+              <div className="severity-item-top">
+                <span className="severity-dot" />
+                <span className="severity-label">LOW</span>
+                <span className="severity-val mono">{lowCount}</span>
+              </div>
+              <div className="severity-bar-track">
+                <div
+                  className="severity-bar-fill low"
+                  style={{ width: `${Math.min(lowCount * 5, 100)}%` }}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Embedded 4-Metric KPI Strip */}
-        <div className="hero-kpi-strip">
-          {/* Critical */}
-          <div className="kpi-metric-card critical">
-            <div className="kpi-icon-wrap critical">
-              <AlertTriangle size={15} />
-            </div>
-            <div className="kpi-meta">
-              <span className="kpi-number">{criticalCount}</span>
-              <span className="kpi-label">Critical</span>
-            </div>
+        {/* Right Column: Time Window & Quick Action Buttons */}
+        <div className="hero-actions-col">
+          <div className="hero-time-badge" title="Filter timeframe">
+            <Calendar size={13} className="time-icon" />
+            <span className="time-text mono">{timeRange}</span>
+            <ChevronDown size={12} className="time-chevron" />
           </div>
 
-          <div className="kpi-divider" />
-
-          {/* High */}
-          <div className="kpi-metric-card high">
-            <div className="kpi-icon-wrap high">
-              <Shield size={15} />
-            </div>
-            <div className="kpi-meta">
-              <span className="kpi-number">{highCount}</span>
-              <span className="kpi-label">High</span>
-            </div>
+          <div className="hero-cta-group">
+            <button
+              type="button"
+              className="btn-hero-action primary"
+              onClick={onRunDetection}
+              title="Execute immediate threat detection scan"
+            >
+              <Play size={14} className="btn-icon" />
+              <span>Run Detection</span>
+            </button>
           </div>
 
-          <div className="kpi-divider" />
-
-          {/* Medium */}
-          <div className="kpi-metric-card medium">
-            <div className="kpi-icon-wrap medium">
-              <Crosshair size={15} />
+          <div className="hero-status-pills">
+            <div className="status-pill-item" title="ML Anomaly Engine Status">
+              <CheckCircle size={12} className="pill-icon text-green" />
+              <span className="pill-text mono">ML-ENGINE: ONLINE</span>
             </div>
-            <div className="kpi-meta">
-              <span className="kpi-number">{mediumCount}</span>
-              <span className="kpi-label">Medium</span>
-            </div>
-          </div>
-
-          <div className="kpi-divider" />
-
-          {/* Low */}
-          <div className="kpi-metric-card low">
-            <div className="kpi-icon-wrap low">
-              <CheckCircle size={15} />
-            </div>
-            <div className="kpi-meta">
-              <span className="kpi-number">{lowCount}</span>
-              <span className="kpi-label">Low</span>
+            <div className="status-pill-item" title="Attack Graph Synchronization">
+              <Shield size={12} className="pill-icon text-cyan" />
+              <span className="pill-text mono">TWIN: SYNCED</span>
             </div>
           </div>
         </div>
@@ -170,3 +151,5 @@ export const GlobeHero: React.FC<GlobeHeroProps> = ({
     </section>
   )
 }
+
+export default GlobeHero

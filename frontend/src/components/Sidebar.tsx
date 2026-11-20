@@ -18,7 +18,6 @@ import {
   Search,
   PanelLeftClose,
   PanelLeft,
-  Globe,
 } from 'lucide-react'
 
 export type NavItemKey =
@@ -94,16 +93,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* OPERATE SECTION */}
         <div className="nav-group">
           {!collapsed && <div className="nav-group-title">Operate</div>}
-
-          <button
-            type="button"
-            className={`nav-item ${activeItem === 'home' ? 'active' : ''}`}
-            onClick={() => onSelect('home')}
-            title="Home Platform Portal"
-          >
-            <Globe size={17} className="nav-icon" />
-            {!collapsed && <span className="nav-label">Home Portal</span>}
-          </button>
 
           <button
             type="button"
