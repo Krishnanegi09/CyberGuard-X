@@ -426,3 +426,400 @@
     align-items: flex-start;
   }
 }
+
+/* =========================================================
+   WIRESHARK-STYLE PACKET STREAM WINDOW & BOTTOM ANOMALY PANE
+   ========================================================= */
+
+.wireshark-window {
+  background-color: #0b0f17;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.wireshark-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background-color: #0f172a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: wrap;
+}
+
+.wireshark-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wireshark-title-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: #38bdf8;
+  letter-spacing: 0.03em;
+}
+
+.wireshark-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #070a11;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 4px 10px;
+  min-width: 260px;
+}
+
+.wireshark-filter-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #f1f5f9;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  width: 100%;
+}
+
+.wireshark-filter-input::placeholder {
+  color: #64748b;
+}
+
+.wireshark-protocol-pills {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ws-proto-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ws-proto-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f8fafc;
+}
+
+.ws-proto-btn.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.wireshark-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ws-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ws-tool-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+}
+
+.ws-tool-btn.active {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+}
+
+/* Wireshark Table View */
+.wireshark-table-container {
+  max-height: 380px;
+  overflow-y: auto;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  position: relative;
+  background: #090d16;
+}
+
+.wireshark-table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+
+.wireshark-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #131b2e;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.wireshark-table th {
+  padding: 7px 10px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.03em;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  user-select: none;
+}
+
+.wireshark-table td {
+  padding: 5px 10px;
+  font-size: 11.5px;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.ws-row {
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+
+.ws-row:hover {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+.ws-row.selected {
+  background-color: rgba(56, 189, 248, 0.22) !important;
+  outline: 1px solid #38bdf8;
+}
+
+/* Protocol-specific color row styling */
+.ws-row-tcp {
+  background-color: rgba(56, 189, 248, 0.03);
+  color: #bae6fd;
+}
+
+.ws-row-udp {
+  background-color: rgba(96, 165, 250, 0.03);
+  color: #bfdbfe;
+}
+
+.ws-row-dns {
+  background-color: rgba(52, 211, 153, 0.04);
+  color: #a7f3d0;
+}
+
+.ws-row-tls {
+  background-color: rgba(192, 132, 252, 0.04);
+  color: #e9d5ff;
+}
+
+.ws-row-http {
+  background-color: rgba(250, 204, 21, 0.04);
+  color: #fef08a;
+}
+
+.ws-row-anomaly {
+  background-color: rgba(244, 63, 94, 0.15) !important;
+  color: #fecdd3 !important;
+  font-weight: 600;
+  border-left: 3px solid #f43f5e;
+}
+
+/* Badge styles */
+.ws-badge-proto {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.ws-badge-proto.tcp { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+.ws-badge-proto.udp { background: rgba(96, 165, 250, 0.2); color: #60a5fa; }
+.ws-badge-proto.dns { background: rgba(52, 211, 153, 0.2); color: #34d399; }
+.ws-badge-proto.tls { background: rgba(192, 132, 252, 0.2); color: #c084fc; }
+.ws-badge-proto.http { background: rgba(250, 204, 21, 0.2); color: #facc15; }
+.ws-badge-proto.anomaly { background: rgba(244, 63, 94, 0.3); color: #fb7185; }
+
+/* Packet Inspector Panel */
+.packet-inspector {
+  background: #0f172a;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.packet-inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.packet-inspector-title {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.packet-inspector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.inspector-section {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.inspector-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 6px;
+  letter-spacing: 0.04em;
+}
+
+.inspector-field {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.inspector-field-label {
+  color: #64748b;
+}
+
+.inspector-field-value {
+  color: #f1f5f9;
+  font-weight: 500;
+}
+
+/* Bottom Window: Anomaly Packets Window */
+.anomalies-bottom-window {
+  background-color: #0b0f17;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 20px rgba(244, 63, 94, 0.08);
+}
+
+.anomalies-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: rgba(244, 63, 94, 0.08);
+  border-bottom: 1px solid rgba(244, 63, 94, 0.2);
+}
+
+.anomalies-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: #f43f5e;
+}
+
+.anomalies-count-tag {
+  background: rgba(244, 63, 94, 0.2);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  color: #fca5a5;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.anomalies-table-container {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.anomalies-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.anomalies-table th {
+  background: #111827;
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.anomalies-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+}
+
+.anomalies-row {
+  transition: background-color 0.15s ease;
+}
+
+.anomalies-row:hover {
+  background: rgba(244, 63, 94, 0.08);
+}
+
+.anomaly-rule-tag {
+  color: #fb7185;
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
+.anomaly-desc-text {
+  color: #cbd5e1;
+  font-size: 11.5px;
+}
+
+.anomaly-evidence-text {
+  color: #94a3b8;
+  font-size: 10.5px;
+  margin-top: 2px;
+}

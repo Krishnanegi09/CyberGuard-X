@@ -1,7 +1,10 @@
+import asyncio
 from dataclasses import asdict
+import json
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -120,3 +123,81 @@ def stop_monitoring(
     if stats is None:
         return monitoring_status(organization_id, scope_id, membership)
     return MonitoringStats(**asdict(stats))
+
+
+@router.get("/packets")
+def get_monitoring_packets(
+    organization_id: UUID,
+    scope_id: UUID,
+    since_id: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
+    membership=Depends(require_organization_permission("observations.read")),
+):
+    service = monitoring_manager.get(organization_id, scope_id)
+    if service is None:
+        return {
+            "packets": [],
+            "total_captured": 0,
+            "latest_id": 0,
+            "is_capturing": False,
+        }
+    packets = service.get_packets(since_id=since_id, limit=limit)
+    stats = service.stats()
+    latest_id = packets[-1]["id"] if packets else since_id
+    return {
+        "packets": packets,
+        "total_captured": stats.captured_packets,
+        "latest_id": latest_id,
+        "is_capturing": stats.status == "running",
+    }
+
+
+@router.get("/anomalies")
+def get_monitoring_anomalies(
+    organization_id: UUID,
+    scope_id: UUID,
+    limit: int = Query(default=50, ge=1, le=200),
+    membership=Depends(require_organization_permission("observations.read")),
+):
+    service = monitoring_manager.get(organization_id, scope_id)
+    if service is None:
+        return {"anomalies": [], "total_anomalies": 0}
+    anomalies = service.get_anomalies(limit=limit)
+    return {"anomalies": anomalies, "total_anomalies": len(anomalies)}
+
+
+@router.get("/stream")
+async def stream_monitoring_packets(
+    organization_id: UUID,
+    scope_id: UUID,
+    membership=Depends(require_organization_permission("observations.read")),
+):
+    async def event_generator():
+        last_id = 0
+        while True:
+            service = monitoring_manager.get(organization_id, scope_id)
+            if service is None:
+                yield f"data: {json.dumps({'type': 'status', 'status': 'stopped'})}\n\n"
+                await asyncio.sleep(1.0)
+                continue
+
+            packets = service.get_packets(since_id=last_id, limit=50)
+            if packets:
+                last_id = packets[-1]["id"]
+                yield f"data: {json.dumps({'type': 'packets', 'packets': packets})}\n\n"
+
+            anomalies = service.get_anomalies(limit=20)
+            if anomalies:
+                yield f"data: {json.dumps({'type': 'anomalies', 'anomalies': anomalies})}\n\n"
+
+            await asyncio.sleep(0.3)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

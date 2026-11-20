@@ -283,3 +283,80 @@ export function updateNIDSAlertStatus(organizationId: string, scopeId: string, a
     { method: 'PATCH', body: JSON.stringify({ status }) },
   )
 }
+
+export interface WiresharkPacket {
+  id: number
+  time: string
+  time_rel: number
+  source: string
+  source_ip: string
+  source_port: number | null
+  destination: string
+  destination_ip: string
+  destination_port: number | null
+  protocol: string
+  length: number
+  tcp_flags: number | null
+  flags_desc: string
+  info: string
+  is_anomaly: boolean
+  anomaly_rule: string | null
+  anomaly_severity: string | null
+}
+
+export interface AnomalyPacketRecord {
+  id: string
+  packet_id: number
+  timestamp: string
+  time: string
+  rule_id: string
+  name: string
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+  source: string
+  destination: string
+  protocol: string
+  description: string
+  evidence: string
+}
+
+export interface PacketsResponse {
+  packets: WiresharkPacket[]
+  total_captured: number
+  latest_id: number
+  is_capturing: boolean
+}
+
+export interface AnomaliesResponse {
+  anomalies: AnomalyPacketRecord[]
+  total_anomalies: number
+}
+
+export function getMonitoringPackets(
+  organizationId: string,
+  scopeId: string,
+  idToken: string,
+  sinceId = 0,
+  limit = 100,
+): Promise<PacketsResponse> {
+  const query = new URLSearchParams({
+    since_id: String(sinceId),
+    limit: String(limit),
+  })
+  return authenticatedRequest<PacketsResponse>(
+    `/organizations/${encodeURIComponent(organizationId)}/network-scopes/${encodeURIComponent(scopeId)}/monitoring/packets?${query.toString()}`,
+    idToken,
+  )
+}
+
+export function getMonitoringAnomalies(
+  organizationId: string,
+  scopeId: string,
+  idToken: string,
+  limit = 50,
+): Promise<AnomaliesResponse> {
+  const query = new URLSearchParams({ limit: String(limit) })
+  return authenticatedRequest<AnomaliesResponse>(
+    `/organizations/${encodeURIComponent(organizationId)}/network-scopes/${encodeURIComponent(scopeId)}/monitoring/anomalies?${query.toString()}`,
+    idToken,
+  )
+}

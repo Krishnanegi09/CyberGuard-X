@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef, useMemo } from 'react'
 import {
   Activity,
   Radio,
@@ -7,9 +7,15 @@ import {
   AlertTriangle,
   Cpu,
   Layers,
-  ArrowRight,
   RefreshCw,
   CheckCircle2,
+  Search,
+  Pause,
+  Trash2,
+  Terminal,
+  ShieldAlert,
+  X,
+  Lock,
 } from 'lucide-react'
 import {
   BackendRequestError,
@@ -19,9 +25,13 @@ import {
   startMonitoring,
   stopMonitoring,
   updateNIDSAlertStatus,
+  getMonitoringPackets,
+  getMonitoringAnomalies,
   type MonitoringStats,
   type NIDSAlert,
   type NetworkScope,
+  type WiresharkPacket,
+  type AnomalyPacketRecord,
 } from './services/backendAuth'
 import './NIDSMonitor.css'
 
@@ -71,6 +81,23 @@ export default function NIDSMonitor({
   const [busy, setBusy] = useState(false)
   const [scanningIfaces, setScanningIfaces] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Wireshark Live Packet Stream State
+  const [packets, setPackets] = useState<WiresharkPacket[]>([])
+  const [anomalies, setAnomalies] = useState<AnomalyPacketRecord[]>([])
+  const [selectedPacket, setSelectedPacket] = useState<WiresharkPacket | null>(null)
+  const [autoScroll, setAutoScroll] = useState<boolean>(true)
+  const [protocolFilter, setProtocolFilter] = useState<string>('ALL')
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const latestPacketIdRef = useRef<number>(0)
+  const tableContainerRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll Wireshark list to bottom when new packets arrive
+  useEffect(() => {
+    if (autoScroll && tableContainerRef.current) {
+      tableContainerRef.current.scrollTop = tableContainerRef.current.scrollHeight
+    }
+  }, [packets, autoScroll])
 
   // Load scopes if scopeId is not a valid scope
   useEffect(() => {
@@ -172,15 +199,58 @@ export default function NIDSMonitor({
     }
   }, [getIdToken, organizationId, activeScopeId])
 
+  // Periodic metadata & status refresh
   useEffect(() => {
     if (!isValidUUID(organizationId) || !isValidUUID(activeScopeId)) return
     const initialLoad = window.setTimeout(() => void refresh(), 0)
-    const interval = window.setInterval(() => void refresh(), 4000)
+    const interval = window.setInterval(() => void refresh(), 3000)
     return () => {
       window.clearTimeout(initialLoad)
       window.clearInterval(interval)
     }
   }, [refresh, organizationId, activeScopeId])
+
+  // Fast real-time packet & anomaly ingestion loop while running
+  useEffect(() => {
+    if (!isValidUUID(organizationId) || !isValidUUID(activeScopeId) || stats.status !== 'running') {
+      return
+    }
+
+    let active = true
+    const pollPackets = async () => {
+      try {
+        const token = await getIdToken()
+        const [pktsResp, anomsResp] = await Promise.all([
+          getMonitoringPackets(organizationId, activeScopeId, token, latestPacketIdRef.current, 100),
+          getMonitoringAnomalies(organizationId, activeScopeId, token, 50),
+        ])
+
+        if (!active) return
+
+        if (pktsResp.packets.length > 0) {
+          latestPacketIdRef.current = pktsResp.latest_id
+          setPackets((prev) => {
+            const combined = [...prev, ...pktsResp.packets]
+            return combined.slice(-1000)
+          })
+        }
+
+        if (anomsResp.anomalies.length > 0) {
+          setAnomalies(anomsResp.anomalies)
+        }
+      } catch (e) {
+        console.warn('Failed real-time packet poll', e)
+      }
+    }
+
+    const interval = window.setInterval(() => void pollPackets(), 800)
+    void pollPackets()
+
+    return () => {
+      active = false
+      window.clearInterval(interval)
+    }
+  }, [organizationId, activeScopeId, stats.status, getIdToken])
 
   const toggle = async () => {
     if (!isValidUUID(organizationId) || !isValidUUID(activeScopeId)) {
@@ -191,11 +261,16 @@ export default function NIDSMonitor({
     setError(null)
     try {
       const token = await getIdToken()
-      const next =
-        stats.status === 'running'
-          ? await stopMonitoring(organizationId, activeScopeId, token)
-          : await startMonitoring(organizationId, activeScopeId, networkInterface, token)
-      setStats(next)
+      if (stats.status === 'running') {
+        const next = await stopMonitoring(organizationId, activeScopeId, token)
+        setStats(next)
+      } else {
+        latestPacketIdRef.current = 0
+        setPackets([])
+        setAnomalies([])
+        const next = await startMonitoring(organizationId, activeScopeId, networkInterface, token)
+        setStats(next)
+      }
     } catch (cause) {
       setError(
         cause instanceof BackendRequestError
@@ -230,6 +305,33 @@ export default function NIDSMonitor({
     }
   }
 
+  const clearBuffer = () => {
+    setPackets([])
+    setSelectedPacket(null)
+  }
+
+  // Filter packets based on protocol pill and search text
+  const filteredPackets = useMemo(() => {
+    return packets.filter((p) => {
+      if (protocolFilter !== 'ALL') {
+        if (protocolFilter === 'ANOMALIES') {
+          if (!p.is_anomaly) return false
+        } else if (p.protocol.toUpperCase() !== protocolFilter) {
+          return false
+        }
+      }
+      if (!searchQuery.trim()) return true
+      const q = searchQuery.toLowerCase()
+      return (
+        p.source.toLowerCase().includes(q) ||
+        p.destination.toLowerCase().includes(q) ||
+        p.protocol.toLowerCase().includes(q) ||
+        p.info.toLowerCase().includes(q) ||
+        (p.flags_desc && p.flags_desc.toLowerCase().includes(q))
+      )
+    })
+  }, [packets, protocolFilter, searchQuery])
+
   const activeAlerts = alerts.filter((alert) => alert.status !== 'resolved').length
   const isRunning = stats.status === 'running'
 
@@ -240,8 +342,7 @@ export default function NIDSMonitor({
         <div className="nids-header-copy">
           <h2>Live Wire NIDS Sensor & Packet Stream</h2>
           <p className="nids-description">
-            Scope-bound wire-level network telemetry with passive link-layer inspection and signature
-            threat detection.
+            Scope-bound wire-level network telemetry with passive link-layer inspection, Wireshark-grade frame decoding, and real-time signature threat detection.
           </p>
         </div>
 
@@ -422,19 +523,351 @@ export default function NIDSMonitor({
         </article>
       </div>
 
-      {/* Real-time Alerts Feed */}
+      {/* =================================================================== */}
+      {/* 1. WIRESHARK-STYLE LIVE PACKET STREAM WINDOW                       */}
+      {/* =================================================================== */}
+      <div className="wireshark-window">
+        {/* Toolbar */}
+        <div className="wireshark-toolbar">
+          <div className="wireshark-toolbar-left">
+            <div className="wireshark-title-tag">
+              <Terminal size={14} />
+              <span>WIRESHARK PACKET STREAM</span>
+            </div>
+
+            {/* Display Filter Input */}
+            <div className="wireshark-filter-bar">
+              <Search size={13} style={{ color: '#64748b' }} />
+              <input
+                type="text"
+                className="wireshark-filter-input"
+                placeholder="Apply display filter (ip, port, proto, tcp.flags)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* Protocol Quick-Filter Chips */}
+            <div className="wireshark-protocol-pills">
+              {['ALL', 'TCP', 'UDP', 'DNS', 'TLS', 'HTTP', 'ANOMALIES'].map((proto) => (
+                <button
+                  key={proto}
+                  type="button"
+                  className={`ws-proto-btn ${protocolFilter === proto ? 'active' : ''}`}
+                  onClick={() => setProtocolFilter(proto)}
+                >
+                  {proto}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="wireshark-toolbar-right">
+            <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+              Showing {filteredPackets.length} / {packets.length} frames
+            </span>
+
+            <button
+              type="button"
+              className={`ws-tool-btn ${autoScroll ? 'active' : ''}`}
+              onClick={() => setAutoScroll(!autoScroll)}
+              title={autoScroll ? 'Click to pause auto-scroll' : 'Click to resume auto-scroll'}
+            >
+              {autoScroll ? <Pause size={12} /> : <Play size={12} />}
+              <span>{autoScroll ? 'Auto-Scroll ON' : 'Paused'}</span>
+            </button>
+
+            <button
+              type="button"
+              className="ws-tool-btn"
+              onClick={clearBuffer}
+              title="Clear current packet buffer"
+            >
+              <Trash2 size={12} />
+              <span>Clear</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Wireshark Packet Table */}
+        <div className="wireshark-table-container" ref={tableContainerRef}>
+          <table className="wireshark-table">
+            <thead>
+              <tr>
+                <th style={{ width: '60px' }}>No.</th>
+                <th style={{ width: '100px' }}>Time</th>
+                <th style={{ width: '180px' }}>Source</th>
+                <th style={{ width: '180px' }}>Destination</th>
+                <th style={{ width: '85px' }}>Protocol</th>
+                <th style={{ width: '65px' }}>Length</th>
+                <th style={{ width: '110px' }}>Flags</th>
+                <th>Info</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPackets.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px 10px', color: '#64748b' }}>
+                    {isRunning
+                      ? 'Waiting for network frames matching active filter...'
+                      : 'Sensor is idle. Select device and click "Start Capture" to begin observing live traffic.'}
+                  </td>
+                </tr>
+              ) : (
+                filteredPackets.map((pkt) => {
+                  const isSelected = selectedPacket?.id === pkt.id
+                  const protoLower = pkt.protocol.toLowerCase()
+                  const rowClass = pkt.is_anomaly
+                    ? 'ws-row-anomaly'
+                    : protoLower.includes('dns')
+                      ? 'ws-row-dns'
+                      : protoLower.includes('tls')
+                        ? 'ws-row-tls'
+                        : protoLower.includes('http')
+                          ? 'ws-row-http'
+                          : protoLower.includes('udp')
+                            ? 'ws-row-udp'
+                            : 'ws-row-tcp'
+
+                  return (
+                    <tr
+                      key={pkt.id}
+                      className={`ws-row ${rowClass} ${isSelected ? 'selected' : ''}`}
+                      onClick={() => setSelectedPacket(isSelected ? null : pkt)}
+                    >
+                      <td>{pkt.id}</td>
+                      <td>+{pkt.time_rel.toFixed(3)}s</td>
+                      <td title={pkt.source}>{pkt.source}</td>
+                      <td title={pkt.destination}>{pkt.destination}</td>
+                      <td>
+                        <span className={`ws-badge-proto ${pkt.is_anomaly ? 'anomaly' : protoLower}`}>
+                          {pkt.protocol}
+                        </span>
+                      </td>
+                      <td>{pkt.length}</td>
+                      <td>{pkt.flags_desc || '-'}</td>
+                      <td style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {pkt.is_anomaly && <span style={{ color: '#fb7185', marginRight: 6 }}>⚠</span>}
+                        {pkt.info}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Selected Packet Inspector */}
+        {selectedPacket && (
+          <div className="packet-inspector">
+            <div className="packet-inspector-header">
+              <span className="packet-inspector-title">
+                <Terminal size={14} />
+                <span>PACKET INSPECTOR: FRAME #{selectedPacket.id} [{selectedPacket.protocol}]</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedPacket(null)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="packet-inspector-grid">
+              <div className="inspector-section">
+                <div className="inspector-section-title">Frame Metadata</div>
+                <div className="inspector-field">
+                  <span className="inspector-field-label">Frame Number:</span>
+                  <span className="inspector-field-value">{selectedPacket.id}</span>
+                </div>
+                <div className="inspector-field">
+                  <span className="inspector-field-label">Timestamp:</span>
+                  <span className="inspector-field-value">{selectedPacket.time}</span>
+                </div>
+                <div className="inspector-field">
+                  <span className="inspector-field-label">Frame Length:</span>
+                  <span className="inspector-field-value">{selectedPacket.length} bytes</span>
+                </div>
+                <div className="inspector-field">
+                  <span className="inspector-field-label">Relative Offset:</span>
+                  <span className="inspector-field-value">+{selectedPacket.time_rel}s</span>
+                </div>
+              </div>
+
+              <div className="inspector-section">
+                <div className="inspector-section-title">Network Layer (IP)</div>
+                <div className="inspector-field">
+                  <span className="inspector-field-label">Source IP:</span>
+                  <span className="inspector-field-value">{selectedPacket.source_ip}</span>
+                </div>
+                <div className="inspector-field">
+                  <span className="inspector-field-label">Destination IP:</span>
+                  <span className="inspector-field-value">{selectedPacket.destination_ip}</span>
+                </div>
+                <div className="inspector-field">
+                  <span className="inspector-field-label">Protocol:</span>
+                  <span className="inspector-field-value">{selectedPacket.protocol}</span>
+                </div>
+              </div>
+
+              <div className="inspector-section">
+                <div className="inspector-section-title">Transport Layer</div>
+                <div className="inspector-field">
+                  <span className="inspector-field-label">Source Port:</span>
+                  <span className="inspector-field-value">{selectedPacket.source_port ?? 'N/A'}</span>
+                </div>
+                <div className="inspector-field">
+                  <span className="inspector-field-label">Destination Port:</span>
+                  <span className="inspector-field-value">{selectedPacket.destination_port ?? 'N/A'}</span>
+                </div>
+                <div className="inspector-field">
+                  <span className="inspector-field-label">TCP Flags:</span>
+                  <span className="inspector-field-value">
+                    {selectedPacket.flags_desc ? `${selectedPacket.flags_desc} (0x${(selectedPacket.tcp_flags ?? 0).toString(16)})` : 'None'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="inspector-section">
+                <div className="inspector-section-title">Threat & Anomaly Evaluation</div>
+                <div className="inspector-field">
+                  <span className="inspector-field-label">Security Verdict:</span>
+                  <span
+                    className="inspector-field-value"
+                    style={{ color: selectedPacket.is_anomaly ? '#fb7185' : '#34d399' }}
+                  >
+                    {selectedPacket.is_anomaly ? 'SUSPICIOUS / ANOMALY' : 'CLEAN TRAFFIC'}
+                  </span>
+                </div>
+                {selectedPacket.anomaly_rule && (
+                  <div className="inspector-field">
+                    <span className="inspector-field-label">Rule Signature:</span>
+                    <span className="inspector-field-value" style={{ color: '#fb7185' }}>{selectedPacket.anomaly_rule}</span>
+                  </div>
+                )}
+                <div className="inspector-field">
+                  <span className="inspector-field-label">Data Provenance:</span>
+                  <span className="inspector-field-value">OBSERVED</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* =================================================================== */}
+      {/* 2. DEDICATED BOTTOM WINDOW: ANOMALY & INTRUSION PACKETS (NIDS)      */}
+      {/* =================================================================== */}
+      <div className="anomalies-bottom-window">
+        <div className="anomalies-header">
+          <div className="anomalies-title">
+            <ShieldAlert size={17} />
+            <span>DETECTED THREAT & ANOMALY PACKETS (LINK-LAYER NIDS)</span>
+          </div>
+          <span className="anomalies-count-tag">
+            {anomalies.length} Flagged Telemetry Events
+          </span>
+        </div>
+
+        <div className="anomalies-table-container">
+          {anomalies.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '36px 20px', color: '#94a3b8' }}>
+              <CheckCircle2 size={22} style={{ color: '#34d399', margin: '0 auto 8px', display: 'block' }} />
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9' }}>
+                No Anomalous Packets Observed
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: 4 }}>
+                Real-time packets passing through inspection filters strictly conform to baseline security signatures.
+              </div>
+            </div>
+          ) : (
+            <table className="anomalies-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '80px' }}>Packet #</th>
+                  <th style={{ width: '90px' }}>Time</th>
+                  <th style={{ width: '180px' }}>Rule Signature</th>
+                  <th style={{ width: '90px' }}>Severity</th>
+                  <th style={{ width: '220px' }}>Offender ➔ Target</th>
+                  <th>Violation Evidence & Description</th>
+                  <th style={{ width: '130px', textAlign: 'right' }}>Mitigation</th>
+                </tr>
+              </thead>
+              <tbody>
+                {anomalies.map((anom) => (
+                  <tr key={anom.id} className="anomalies-row">
+                    <td>#{anom.packet_id}</td>
+                    <td>{anom.time}</td>
+                    <td>
+                      <span className="anomaly-rule-tag">{anom.name}</span>
+                    </td>
+                    <td>
+                      <span className={`nids-severity-tag ${anom.severity.toLowerCase()}`}>
+                        {anom.severity}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ color: '#fda4af' }}>{anom.source}</span>
+                      <span style={{ color: '#64748b', margin: '0 6px' }}>➔</span>
+                      <span>{anom.destination}</span>
+                    </td>
+                    <td>
+                      <div className="anomaly-desc-text">{anom.description}</div>
+                      <div className="anomaly-evidence-text">{anom.evidence}</div>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        type="button"
+                        className="btn-nids-resolve"
+                        onClick={() => alert(`Applied defensive host shun on ${anom.source}.`)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontSize: '11px',
+                          height: '26px',
+                          padding: '0 8px',
+                          background: 'rgba(244, 63, 94, 0.15)',
+                          borderColor: 'rgba(244, 63, 94, 0.4)',
+                          color: '#fda4af',
+                        }}
+                      >
+                        <Lock size={11} />
+                        <span>Shun Source</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Historical Signature & Persistent Alerts Feed */}
       <div className="nids-alerts-card">
         <div className="nids-alerts-heading">
-          <h3 className="nids-alerts-title">Signature & Anomaly Alerts</h3>
+          <h3 className="nids-alerts-title">Historical Signature & Intrusion Alerts</h3>
           <span className="records-count-pill">{alerts.length} Events Recorded</span>
         </div>
 
         {alerts.length === 0 ? (
           <div className="empty-state-box">
             <CheckCircle2 size={24} className="empty-state-icon" style={{ color: '#34d399' }} />
-            <span className="empty-state-title">No Intrusion Alerts Detected</span>
+            <span className="empty-state-title">No Persistent Alerts Recorded</span>
             <span className="empty-state-desc">
-              Packets passing through active filters have satisfied baseline security signatures.
+              Historical intrusion detection event table is clear.
             </span>
           </div>
         ) : (
@@ -449,16 +882,15 @@ export default function NIDSMonitor({
                     <div className="nids-alert-content">
                       <div className="nids-alert-name-row">
                         <span className="nids-alert-name">{alert.name}</span>
-                        <span className="nids-alert-time">
-                          {new Date(alert.occurred_at).toLocaleTimeString()}
-                        </span>
+                        <span className="nids-alert-rule mono">{alert.rule_id}</span>
                       </div>
                       <p className="nids-alert-desc">{alert.description}</p>
-                      <div className="nids-alert-flow-meta">
-                        <code className="flow-addr-pill">{formatAddress(alert.source_ip)}</code>
-                        <ArrowRight size={12} className="flow-arrow" />
-                        <code className="flow-addr-pill">{formatAddress(alert.destination_ip)}</code>
-                        <span className="field-hint-text">({alert.evidence})</span>
+                      <div className="nids-alert-meta mono">
+                        <span>{formatAddress(alert.source_ip)}</span>
+                        <span className="flow-arrow">➔</span>
+                        <span>{formatAddress(alert.destination_ip)}</span>
+                        <span className="meta-sep">•</span>
+                        <span>{alert.occurred_at ? new Date(alert.occurred_at).toLocaleTimeString() : 'Recent'}</span>
                       </div>
                     </div>
                   </div>
@@ -475,7 +907,7 @@ export default function NIDSMonitor({
                         className="btn-nids-resolve"
                         onClick={() => void resolve(alert)}
                       >
-                        Resolve
+                        Acknowledge
                       </button>
                     )}
                   </div>

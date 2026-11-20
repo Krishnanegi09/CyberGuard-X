@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from ipaddress import ip_address, ip_network
 from queue import Empty, Full, Queue
 from threading import Event, Lock, Thread
@@ -18,6 +20,25 @@ from backend.app.services.monitoring.nids_engine import (
     NIDSAlert,
     NIDSEngine,
 )
+
+
+def format_tcp_flags(flags: int | None) -> str:
+    if flags is None:
+        return ""
+    names = []
+    if flags & 0x02:
+        names.append("SYN")
+    if flags & 0x10:
+        names.append("ACK")
+    if flags & 0x01:
+        names.append("FIN")
+    if flags & 0x04:
+        names.append("RST")
+    if flags & 0x08:
+        names.append("PSH")
+    if flags & 0x20:
+        names.append("URG")
+    return f"[{', '.join(names)}]" if names else ""
 
 
 CaptureStatus = Literal[
@@ -122,6 +143,22 @@ class PacketCaptureService:
         self._ignored_packets = 0
         self._processing_errors = 0
 
+        self._recent_packets: deque[dict] = deque(maxlen=2000)
+        self._recent_anomalies: deque[dict] = deque(maxlen=500)
+        self._packet_counter: int = 0
+        self._start_time: float | None = None
+        self._packet_lock = Lock()
+
+    def get_packets(self, since_id: int = 0, limit: int = 100) -> list[dict]:
+        with self._packet_lock:
+            if since_id <= 0:
+                return list(self._recent_packets)[-limit:]
+            return [p for p in self._recent_packets if p["id"] > since_id][:limit]
+
+    def get_anomalies(self, limit: int = 50) -> list[dict]:
+        with self._packet_lock:
+            return list(self._recent_anomalies)[-limit:]
+
     @property
     def status(self) -> CaptureStatus:
         with self._stats_lock:
@@ -204,10 +241,16 @@ class PacketCaptureService:
 
         User-provided strings are never interpolated directly.
         """
-        clauses = [
-            f"net {network.with_prefixlen}"
-            for network in networks
-        ]
+        clauses = []
+        for network in networks:
+            if network.prefixlen == 0:
+                clauses.append("ip" if network.version == 4 else "ip6")
+            elif (network.version == 4 and network.prefixlen == 32) or (
+                network.version == 6 and network.prefixlen == 128
+            ):
+                clauses.append(f"host {network.network_address}")
+            else:
+                clauses.append(f"net {network.with_prefixlen}")
 
         return "(" + " or ".join(clauses) + ")"
 
@@ -316,6 +359,113 @@ class PacketCaptureService:
                 with self._stats_lock:
                     self._processed_packets += 1
 
+            # Format rich Wireshark-compatible packet telemetry
+            try:
+                dport = observation.destination_port
+                sport = observation.source_port
+                if observation.dns_present or dport == 53 or sport == 53:
+                    protocol = "DNS"
+                elif observation.transport_protocol == "tcp":
+                    if dport in (80, 8080) or sport in (80, 8080):
+                        protocol = "HTTP"
+                    elif dport in (443, 8443) or sport in (443, 8443):
+                        protocol = "TLS"
+                    elif dport == 22 or sport == 22:
+                        protocol = "SSH"
+                    else:
+                        protocol = "TCP"
+                elif observation.transport_protocol == "udp":
+                    protocol = "UDP"
+                else:
+                    protocol = f"IPv{observation.ip_version}"
+
+                flags_desc = format_tcp_flags(observation.tcp_flags)
+
+                if protocol == "DNS":
+                    info = f"Standard query/response ({sport} → {dport}) Len={observation.packet_length}"
+                elif observation.transport_protocol == "tcp":
+                    info = f"{sport} → {dport} {flags_desc} Len={observation.packet_length}".strip()
+                elif observation.transport_protocol == "udp":
+                    info = f"{sport} → {dport} Len={observation.packet_length}"
+                else:
+                    info = f"Network layer frame (IPv{observation.ip_version}) Len={observation.packet_length}"
+
+                is_anomaly = False
+                anomaly_rule = None
+                anomaly_severity = None
+                anomaly_desc = None
+
+                if alerts:
+                    is_anomaly = True
+                    first_alert = alerts[0]
+                    anomaly_rule = first_alert.name
+                    anomaly_severity = first_alert.severity
+                    anomaly_desc = first_alert.description
+
+                if observation.transport_protocol == "tcp" and observation.tcp_flags is not None:
+                    if observation.tcp_flags == 0:
+                        is_anomaly = True
+                        anomaly_rule = "STEALTH_SCAN: TCP NULL Scan"
+                        anomaly_severity = "high"
+                        anomaly_desc = "TCP packet with zero control flags detected"
+                    elif observation.tcp_flags & 0x29 == 0x29:
+                        is_anomaly = True
+                        anomaly_rule = "STEALTH_SCAN: TCP XMAS Scan"
+                        anomaly_severity = "high"
+                        anomaly_desc = "TCP packet with FIN, PSH, and URG flags set"
+                    elif observation.tcp_flags == 0x02 and dport in (21, 23, 445, 1433, 3389):
+                        is_anomaly = True
+                        anomaly_rule = f"UNAUTHORIZED_PROBE: SYN Probe to Port {dport}"
+                        anomaly_severity = "medium"
+                        anomaly_desc = f"Direct TCP SYN probe to restricted service port {dport}"
+
+                with self._packet_lock:
+                    self._packet_counter += 1
+                    pkt_id = self._packet_counter
+                    base_time = self._start_time if self._start_time is not None else observation.captured_at.timestamp()
+                    rel_time = max(0.0, round(observation.captured_at.timestamp() - base_time, 4))
+
+                    record = {
+                        "id": pkt_id,
+                        "time": observation.captured_at.strftime("%H:%M:%S.%f")[:-3],
+                        "time_rel": rel_time,
+                        "source_ip": observation.source_ip,
+                        "source_port": sport,
+                        "source": f"{observation.source_ip}:{sport}" if sport is not None else observation.source_ip,
+                        "destination_ip": observation.destination_ip,
+                        "destination_port": dport,
+                        "destination": f"{observation.destination_ip}:{dport}" if dport is not None else observation.destination_ip,
+                        "protocol": protocol,
+                        "length": observation.packet_length,
+                        "tcp_flags": observation.tcp_flags,
+                        "flags_desc": flags_desc,
+                        "info": info,
+                        "is_anomaly": is_anomaly,
+                        "anomaly_rule": anomaly_rule,
+                        "anomaly_severity": anomaly_severity,
+                    }
+
+                    self._recent_packets.append(record)
+
+                    if is_anomaly:
+                        anomaly_record = {
+                            "id": f"anom-{pkt_id}",
+                            "packet_id": pkt_id,
+                            "timestamp": observation.captured_at.isoformat(),
+                            "time": record["time"],
+                            "rule_id": anomaly_rule or "ANOMALY_FLOW",
+                            "name": anomaly_rule or "Suspicious Network Event",
+                            "severity": (anomaly_severity or "medium").upper(),
+                            "source": record["source"],
+                            "destination": record["destination"],
+                            "protocol": protocol,
+                            "description": anomaly_desc or info,
+                            "evidence": f"Packet #{pkt_id} [{protocol}] {flags_desc} Len={observation.packet_length}",
+                        }
+                        self._recent_anomalies.append(anomaly_record)
+            except Exception:
+                pass
+
             self._queue.task_done()
 
     def start(
@@ -352,6 +502,8 @@ class PacketCaptureService:
                 self._interface = interface
                 self._allowed_networks = networks
                 self._capture_filter = self._build_capture_filter(networks)
+                with self._packet_lock:
+                    self._start_time = datetime.now(timezone.utc).timestamp()
 
             stop_event = Event()
             worker = Thread(

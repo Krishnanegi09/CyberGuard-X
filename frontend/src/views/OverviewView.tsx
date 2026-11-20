@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { GlobeHero } from '../components/GlobeHero'
 import { ThreatActivityChart } from '../components/ThreatActivityChart'
-import { DigitalTwinPreview } from '../components/DigitalTwinPreview'
+import { DigitalTwinPreview, type TopologyNode } from '../components/DigitalTwinPreview'
 import { AssetRiskDonut } from '../components/AssetRiskDonut'
 import type { FindingDetail } from '../components/EvidenceDrawer'
 
@@ -73,7 +73,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   getIdToken,
 }) => {
   const [realAssets, setRealAssets] = useState<RawOverviewAsset[]>([])
-  const [realTwinNodes, setRealTwinNodes] = useState<unknown[]>([])
+  const [realTwinNodes, setRealTwinNodes] = useState<TopologyNode[]>([])
   const [realFindings, setRealFindings] = useState<FindingDetail[]>([])
   const [realAuditLogs, setRealAuditLogs] = useState<RawOverviewAuditLog[]>([])
 

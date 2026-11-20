@@ -6,7 +6,7 @@ interface DigitalTwinPreviewProps {
   nodes?: TopologyNode[]
 }
 
-interface TopologyNode {
+export interface TopologyNode {
   id: string
   name: string
   ip: string
