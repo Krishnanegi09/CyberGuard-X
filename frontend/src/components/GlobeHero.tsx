@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef, useState } from 'react'
 import {
   Calendar,
   Play,
@@ -9,6 +9,7 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import earthHeroImg from '../assets/earth-hero.jpg'
+import Earth3D from './Earth3D'
 
 interface GlobeHeroProps {
   onRunDetection: () => void
@@ -27,15 +28,55 @@ export const GlobeHero: React.FC<GlobeHeroProps> = ({
   mediumCount = 0,
   lowCount = 0,
 }) => {
+  const [use3D, setUse3D] = useState(true)
+  const [earth3DLoaded, setEarth3DLoaded] = useState(false)
+  const [parallax, setParallax] = useState({ x: 0, y: 0 })
+  const heroRef = useRef<HTMLElement>(null)
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    if (!heroRef.current) return
+    const rect = heroRef.current.getBoundingClientRect()
+    const normX = (e.clientX - rect.left) / rect.width - 0.5
+    const normY = (e.clientY - rect.top) / rect.height - 0.5
+    setParallax({ x: normX, y: normY })
+  }
+
+  const handlePointerLeave = () => {
+    setParallax({ x: 0, y: 0 })
+  }
+
   return (
-    <section className="cg-hero" aria-label="Defense Overview Header">
-      {/* Real Earth Photographic Visual from Space */}
+    <section
+      ref={heroRef}
+      className="cg-hero"
+      aria-label="Defense Overview Header"
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
+    >
+      {/* Real Earth Photographic Visual from Space with 3D Animated Upgrade */}
       <div className="hero-earth-container" aria-hidden="true">
+        {/* Static Earth acts as immediate fallback / background while 3D initializes */}
         <img
           src={earthHeroImg}
           alt="Earth from Orbit"
           className="hero-earth-img"
+          style={{
+            opacity: earth3DLoaded ? 0 : 0.92,
+            transition: 'opacity 0.8s ease-in-out',
+          }}
         />
+
+        {use3D && (
+          <Earth3D
+            onLoaded={() => setEarth3DLoaded(true)}
+            onError={() => {
+              setUse3D(false)
+              setEarth3DLoaded(false)
+            }}
+            parallaxTarget={parallax}
+          />
+        )}
+
         <div className="hero-earth-overlay" />
       </div>
 
