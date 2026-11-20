@@ -532,7 +532,7 @@ export default function NIDSMonitor({
           <div className="wireshark-toolbar-left">
             <div className="wireshark-title-tag">
               <Terminal size={14} />
-              <span>WIRESHARK PACKET STREAM</span>
+              <span>PACKET STREAM</span>
             </div>
 
             {/* Display Filter Input */}
