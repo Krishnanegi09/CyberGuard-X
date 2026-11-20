@@ -25,7 +25,6 @@ import {
   type NetworkScope,
 } from './services/backendAuth'
 import './NetworkDiscovery.css'
-import NIDSMonitor from './NIDSMonitor'
 
 interface NetworkDiscoveryProps {
   organizationId: string
@@ -148,13 +147,32 @@ export default function NetworkDiscovery({
     return () => window.clearTimeout(timer)
   }, [selectedScopeId, loadScans])
 
+  // Periodic polling while any scan is queued or running (2s), and periodic sync (8s)
+  useEffect(() => {
+    if (!selectedScopeId) return
+    const hasActiveScans = scans.some(
+      (s) => s.status === 'queued' || s.status === 'running'
+    )
+    const intervalTime = hasActiveScans ? 2000 : 8000
+    const interval = window.setInterval(() => {
+      void loadScans(selectedScopeId)
+    }, intervalTime)
+    return () => window.clearInterval(interval)
+  }, [selectedScopeId, scans, loadScans])
+
   const handleCreateScope = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const name = scopeName.trim()
     const cidrRanges = scopeCidrs
-      .split('\n')
+      .split(/[\n,]+/)
       .map((entry) => entry.trim())
       .filter(Boolean)
+      .map((entry) => {
+        if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(entry)) {
+          return `${entry}/32`
+        }
+        return entry
+      })
 
     if (!name) {
       setScopeError('Scope name is required.')
@@ -210,7 +228,13 @@ export default function NetworkDiscovery({
       return
     }
 
-    if (!targetCidr.trim()) {
+    let cleanTarget = targetCidr.trim()
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(cleanTarget)) {
+      cleanTarget = `${cleanTarget}/32`
+      setTargetCidr(cleanTarget)
+    }
+
+    if (!cleanTarget) {
       setScanError('Enter a target CIDR.')
       return
     }
@@ -224,7 +248,7 @@ export default function NetworkDiscovery({
       const created = await createDiscoveryScan(
         organizationId,
         selectedScope.id,
-        targetCidr.trim(),
+        cleanTarget,
         profile,
         token,
       )
@@ -521,12 +545,27 @@ export default function NetworkDiscovery({
 
             {selectedScope && (
               <div className="approved-boundary-preview">
-                <span className="boundary-preview-label">Registered Boundary Ranges</span>
+                <span className="boundary-preview-label">Registered Boundary Ranges (click to set target)</span>
                 <div className="scope-cidr-pills">
                   {selectedScope.cidr_ranges.map((range) => (
-                    <span key={range} className="cidr-mono-pill">
+                    <button
+                      type="button"
+                      key={range}
+                      className="cidr-mono-pill"
+                      style={{
+                        cursor: 'pointer',
+                        background: 'rgba(0, 240, 255, 0.05)',
+                        border: '1px solid rgba(0, 240, 255, 0.3)',
+                        transition: 'all 0.15s ease',
+                      }}
+                      title={`Click to set target CIDR to ${range}`}
+                      onClick={() => {
+                        setTargetCidr(range)
+                        setScanError(null)
+                      }}
+                    >
                       {range}
-                    </span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -658,10 +697,26 @@ export default function NetworkDiscovery({
                         {scan.scan_type.replaceAll('_', ' ')}
                       </td>
                       <td>
-                        <span className={`scan-status-pill ${status}`}>
+                        <span className={`scan-status-pill ${status}`} title={scan.error_message ?? undefined}>
                           <span className="status-dot-pulse" />
                           <span>{statusLabel(scan.status)}</span>
                         </span>
+                        {scan.error_message && (
+                          <div
+                            style={{
+                              fontSize: '11px',
+                              color: 'var(--accent-red, #f87171)',
+                              marginTop: '3px',
+                              maxWidth: '220px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={scan.error_message}
+                          >
+                            {scan.error_message}
+                          </div>
+                        )}
                       </td>
                       <td className="mono" style={{ fontSize: '11.5px' }}>
                         {formatDate(scan.started_at)}
@@ -677,15 +732,6 @@ export default function NetworkDiscovery({
           </div>
         )}
       </section>
-
-      {/* Wire NIDS Section for Active Scope */}
-      {selectedScope && (
-        <NIDSMonitor
-          organizationId={organizationId}
-          scopeId={selectedScope.id}
-          getIdToken={getIdToken}
-        />
-      )}
     </div>
   )
 }

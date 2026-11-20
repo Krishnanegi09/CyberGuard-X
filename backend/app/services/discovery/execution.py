@@ -87,7 +87,7 @@ def execute_discovery_scan(scan_run_id: int) -> None:
 
         db.commit()
 
-    except Exception:
+    except Exception as exc:
         db.rollback()
         logger.exception(
             "Discovery scan %s failed.",
@@ -104,7 +104,7 @@ def execute_discovery_scan(scan_run_id: int) -> None:
                 failed_run.status = "failed"
                 failed_run.completed_at = datetime.now(timezone.utc)
                 failed_run.error_message = (
-                    "Scan execution failed. Review backend logs."
+                    str(exc)[:250] or "Scan execution failed. Review backend logs."
                 )
                 db.commit()
 

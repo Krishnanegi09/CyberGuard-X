@@ -21,10 +21,12 @@ NMAP_BINARY = Path(
     "/Applications/nmap.app/Contents/Resources/bin/nmap"
 )
 SCAN_TIMEOUT_SECONDS = 180
-VERSION_TIMEOUT_SECONDS = 5
+VERSION_TIMEOUT_SECONDS = 30
 MAX_XML_OUTPUT_BYTES = 5 * 1024 * 1024
 MAX_STDERR_BYTES = 16 * 1024
 READ_CHUNK_BYTES = 64 * 1024
+
+_VERSION_CACHE: dict[Path, str] = {}
 
 
 class NmapExecutionError(RuntimeError):
@@ -71,6 +73,9 @@ def resolve_nmap_binary() -> Path:
 
 
 def get_nmap_version(binary: Path) -> str:
+    if binary in _VERSION_CACHE:
+        return _VERSION_CACHE[binary]
+
     try:
         completed = subprocess.run(
             [str(binary), "--version"],
@@ -92,7 +97,9 @@ def get_nmap_version(binary: Path) -> str:
     if not first_line:
         raise NmapExecutionError("Nmap returned an empty version response.")
 
-    return first_line[0][:50]
+    ver = first_line[0][:50]
+    _VERSION_CACHE[binary] = ver
+    return ver
 
 
 def _parse_xml(
