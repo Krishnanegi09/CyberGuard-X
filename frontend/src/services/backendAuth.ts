@@ -115,13 +115,19 @@ async function authenticatedRequest<T>(
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null)
 
-    const detail =
-      typeof body === 'object' &&
-      body !== null &&
-      'detail' in body &&
-      typeof body.detail === 'string'
-        ? body.detail
-        : `Backend request failed (HTTP ${response.status}).`
+    let detail = `Backend request failed (HTTP ${response.status}).`
+    if (typeof body === 'object' && body !== null && 'detail' in body) {
+      const rawDetail = (body as { detail: unknown }).detail
+      if (typeof rawDetail === 'string') {
+        detail = rawDetail
+      } else if (Array.isArray(rawDetail)) {
+        detail = rawDetail
+          .map((item: { msg?: string; loc?: string[] }) =>
+            item.msg ? `${item.loc?.slice(-1)[0] ?? 'field'}: ${item.msg}` : JSON.stringify(item),
+          )
+          .join('; ')
+      }
+    }
 
     throw new BackendRequestError(detail, response.status)
   }

@@ -26,8 +26,13 @@ class Settings(BaseSettings):
         "en1",
         "en2",
         "en3",
+        "en4",
         "lo0",
         "bridge0",
+        "utun0",
+        "utun1",
+        "ap1",
+        "awdl0",
     )
 
     @field_validator("capture_allowed_interfaces", mode="before")

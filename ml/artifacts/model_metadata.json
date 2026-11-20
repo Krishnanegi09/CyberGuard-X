@@ -1,0 +1,43 @@
+{
+  "model_name": "CYBERGUARD-X Random Forest NIDS Classifier",
+  "model_version": "v1.0",
+  "model_type": "RandomForestClassifier",
+  "artifact_file": "rf_nids_classifier_v1.joblib",
+  "scaler_file": "scaler_v1.joblib",
+  "provenance": "PREDICTED",
+  "features": [
+    "src_port",
+    "dst_port",
+    "proto_code",
+    "packet_count",
+    "byte_count",
+    "duration_ms",
+    "tcp_flags_syn",
+    "tcp_flags_ack",
+    "tcp_flags_fin",
+    "tcp_flags_rst"
+  ],
+  "n_features": 10,
+  "target_classes": [
+    "BENIGN",
+    "ATTACK"
+  ],
+  "metrics": {
+    "cross_val_precision": 1.0,
+    "cross_val_recall": 1.0,
+    "cross_val_f1": 1.0,
+    "baseline_lr_f1": 0.9691597809244868
+  },
+  "feature_importances": {
+    "src_port": 0.03559259993297137,
+    "dst_port": 0.1155210658840101,
+    "proto_code": 0.0018838465704385447,
+    "packet_count": 0.23263910734440946,
+    "byte_count": 0.367386713634192,
+    "duration_ms": 0.16170180508721232,
+    "tcp_flags_syn": 0.0019733714647295316,
+    "tcp_flags_ack": 0.062469419618052774,
+    "tcp_flags_fin": 0.0016352329626820126,
+    "tcp_flags_rst": 0.01919683750130191
+  }
+}

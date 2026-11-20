@@ -1,20 +1,39 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   AlertTriangle,
   ArrowRight,
   Zap,
-  Crosshair,
-  Package,
   SlidersHorizontal,
   RotateCcw,
   Columns,
   X,
+  CheckCircle,
+  Clock,
 } from 'lucide-react'
 import { GlobeHero } from '../components/GlobeHero'
 import { ThreatActivityChart } from '../components/ThreatActivityChart'
 import { DigitalTwinPreview } from '../components/DigitalTwinPreview'
 import { AssetRiskDonut } from '../components/AssetRiskDonut'
 import type { FindingDetail } from '../components/EvidenceDrawer'
+
+interface RawOverviewPort {
+  port: number
+  service?: string
+}
+
+interface RawOverviewAsset {
+  id: string
+  ip_address: string
+  ports?: RawOverviewPort[]
+}
+
+interface RawOverviewAuditLog {
+  id?: string
+  action?: string
+  details?: string
+  entity_type?: string
+  created_at?: string
+}
 
 interface OverviewViewProps {
   onRunDetection: () => void
@@ -23,6 +42,8 @@ interface OverviewViewProps {
   onSelectFinding: (finding: FindingDetail) => void
   onSelectRiskCategory: (category: string) => void
   onViewLiveActivity: () => void
+  organizationId?: string
+  getIdToken?: () => Promise<string>
 }
 
 interface LayoutConfig {
@@ -41,68 +62,6 @@ const DEFAULT_LAYOUT: LayoutConfig = {
 
 const STORAGE_KEY = 'cgx_overview_layout_v2'
 
-const SAMPLE_FINDINGS: FindingDetail[] = [
-  {
-    id: 'find-01',
-    title: 'Port scan (vertical)',
-    severity: 'Critical',
-    ruleId: 'RULE_PORT_SCAN_VERTICAL',
-    mitreTechnique: 'T1046',
-    mitreTactic: 'Discovery',
-    target: '10.0.0.12', // cgx-allow: lab replay telemetry
-    destinationPort: 'Multiple (50+)',
-    confidence: 0.96,
-    provenance: 'OBSERVED',
-    status: 'OPEN',
-    description:
-      'Single external source initiated rapid SYN probes hitting 58 distinct ports within a 4.2-second window on core application server 10.0.0.12.', // cgx-allow: lab replay telemetry
-    evidenceLogs: [
-      { timestamp: '14:20:11.204', srcIp: '192.168.1.105', dstIp: '10.0.0.12', srcPort: 54101, dstPort: 21, proto: 'TCP', packets: 1, bytes: 60, flags: 'SYN' }, // cgx-allow: lab replay telemetry
-      { timestamp: '14:20:11.248', srcIp: '192.168.1.105', dstIp: '10.0.0.12', srcPort: 54102, dstPort: 22, proto: 'TCP', packets: 1, bytes: 60, flags: 'SYN' }, // cgx-allow: lab replay telemetry
-      { timestamp: '14:20:11.291', srcIp: '192.168.1.105', dstIp: '10.0.0.12', srcPort: 54103, dstPort: 23, proto: 'TCP', packets: 1, bytes: 60, flags: 'SYN' }, // cgx-allow: lab replay telemetry
-      { timestamp: '14:20:11.340', srcIp: '192.168.1.105', dstIp: '10.0.0.12', srcPort: 54104, dstPort: 80, proto: 'TCP', packets: 1, bytes: 60, flags: 'SYN' }, // cgx-allow: lab replay telemetry
-      { timestamp: '14:20:11.385', srcIp: '192.168.1.105', dstIp: '10.0.0.12', srcPort: 54105, dstPort: 443, proto: 'TCP', packets: 1, bytes: 60, flags: 'SYN' }, // cgx-allow: lab replay telemetry
-    ],
-  },
-  {
-    id: 'find-02',
-    title: 'Brute force (SSH)',
-    severity: 'High',
-    ruleId: 'RULE_BRUTE_FORCE_AUTH',
-    mitreTechnique: 'T1110',
-    mitreTactic: 'Credential Access',
-    target: '10.0.0.18', // cgx-allow: lab replay telemetry
-    destinationPort: 22,
-    confidence: 0.91,
-    provenance: 'OBSERVED',
-    status: 'INVESTIGATING',
-    description:
-      'High-frequency authentication stream detected on port 22 (SSH). Exceeded baseline threshold with 34 failed authentication exchanges within 60s.',
-    evidenceLogs: [
-      { timestamp: '14:18:02.110', srcIp: '192.168.1.188', dstIp: '10.0.0.18', srcPort: 48920, dstPort: 22, proto: 'TCP', packets: 8, bytes: 1240, flags: 'PSH,ACK' }, // cgx-allow: lab replay telemetry
-      { timestamp: '14:18:03.450', srcIp: '192.168.1.188', dstIp: '10.0.0.18', srcPort: 48922, dstPort: 22, proto: 'TCP', packets: 8, bytes: 1240, flags: 'PSH,ACK' }, // cgx-allow: lab replay telemetry
-    ],
-  },
-  {
-    id: 'find-03',
-    title: 'Risky exposed service',
-    severity: 'High',
-    ruleId: 'RULE_RISKY_SERVICE',
-    mitreTechnique: 'T1133',
-    mitreTactic: 'Initial Access',
-    target: '10.0.0.25 (FTP)', // cgx-allow: lab replay telemetry
-    destinationPort: 21,
-    confidence: 0.88,
-    provenance: 'DERIVED',
-    status: 'OPEN',
-    description:
-      'Unencrypted File Transfer Protocol (FTP, vsftpd 2.3.4) detected open on internal host 10.0.0.25 communicating across DMZ zone boundary.', // cgx-allow: lab replay telemetry
-    evidenceLogs: [
-      { timestamp: '14:15:22.000', srcIp: '10.0.0.25', dstIp: '0.0.0.0', srcPort: 21, dstPort: 0, proto: 'TCP', packets: 1, bytes: 48, flags: 'LISTEN' }, // cgx-allow: lab replay telemetry
-    ],
-  },
-]
-
 export const OverviewView: React.FC<OverviewViewProps> = ({
   onRunDetection,
   onViewTwin,
@@ -110,7 +69,105 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   onSelectFinding,
   onSelectRiskCategory,
   onViewLiveActivity,
+  organizationId,
+  getIdToken,
 }) => {
+  const [realAssets, setRealAssets] = useState<RawOverviewAsset[]>([])
+  const [realTwinNodes, setRealTwinNodes] = useState<unknown[]>([])
+  const [realFindings, setRealFindings] = useState<FindingDetail[]>([])
+  const [realAuditLogs, setRealAuditLogs] = useState<RawOverviewAuditLog[]>([])
+
+  useEffect(() => {
+    let mounted = true
+    const fetchData = async () => {
+      if (!organizationId || !getIdToken) return
+      try {
+        const token = await getIdToken()
+        const [assetsRes, twinRes, logsRes] = await Promise.all([
+          fetch(`/api/v1/organizations/${encodeURIComponent(organizationId)}/assets`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`/api/v1/organizations/${encodeURIComponent(organizationId)}/twin/graph`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`/api/v1/organizations/${encodeURIComponent(organizationId)}/audit-logs`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ])
+        if (mounted && assetsRes.ok) {
+          const assets = await assetsRes.json()
+          if (Array.isArray(assets)) {
+            setRealAssets(assets as RawOverviewAsset[])
+            const derivedFindings: FindingDetail[] = []
+            ;(assets as RawOverviewAsset[]).forEach((ast) => {
+              (ast.ports || []).forEach((p) => {
+                if ([21, 23, 445].includes(p.port)) {
+                  derivedFindings.push({
+                    id: `find-${ast.id}-${p.port}`,
+                    title: `Risky exposed service (${p.service || 'unknown'})`,
+                    severity: 'High',
+                    ruleId: 'RULE_RISKY_SERVICE',
+                    mitreTechnique: 'T1133',
+                    mitreTactic: 'Initial Access',
+                    target: `${ast.ip_address}:${p.port}`,
+                    destinationPort: p.port,
+                    confidence: 0.95,
+                    provenance: 'OBSERVED',
+                    status: 'OPEN',
+                    description: `Insecure plaintext or legacy service observed listening on ${ast.ip_address} port ${p.port}.`,
+                    evidenceLogs: [],
+                  })
+                }
+              })
+            })
+            setRealFindings(derivedFindings)
+          }
+        }
+        if (mounted && twinRes.ok) {
+          const twin = await twinRes.json()
+          if (twin?.nodes) setRealTwinNodes(twin.nodes)
+        }
+        if (mounted && logsRes.ok) {
+          const logs = await logsRes.json()
+          if (Array.isArray(logs)) setRealAuditLogs(logs)
+        }
+      } catch (e) {
+        console.warn('Failed to load overview real telemetry', e)
+      }
+    }
+    void fetchData()
+    return () => {
+      mounted = false
+    }
+  }, [organizationId, getIdToken])
+
+  const riskCounts = useMemo(() => {
+    let critical = 0
+    let high = 0
+    let medium = 0
+    let low = 0
+
+    for (const asset of realAssets) {
+      const ports = (asset.ports || []).map((p) => p.port)
+      if (ports.some((p: number) => [5432, 3306, 27017, 1433].includes(p))) {
+        critical += 1
+      } else if (ports.some((p: number) => [21, 22, 23, 25, 445].includes(p))) {
+        high += 1
+      } else if (ports.some((p: number) => [80, 443, 8080].includes(p))) {
+        medium += 1
+      } else {
+        low += 1
+      }
+    }
+
+    return {
+      critical,
+      high,
+      medium,
+      low,
+      total: realAssets.length,
+    }
+  }, [realAssets])
   // Load layout preferences from localStorage
   const [layout, setLayout] = useState<LayoutConfig>(() => {
     try {
@@ -335,10 +392,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       {/* Hero Header with Real Earth Visual and 4-KPI Strip */}
       <GlobeHero
         onRunDetection={onRunDetection}
-        criticalCount={3}
-        highCount={7}
-        mediumCount={9}
-        lowCount={5}
+        criticalCount={riskCounts.critical}
+        highCount={riskCounts.high}
+        mediumCount={riskCounts.medium}
+        lowCount={riskCounts.low}
       />
 
       {/* Floating / Compact Layout Toolbar Toggle Strip */}
@@ -436,9 +493,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         {/* Panel 1: Threat Activity Chart */}
         <div
           className="resizable-col-panel"
-          style={{ flex: `0 0 calc(${layout.mainSplit}% - 10px)` }}
+          style={{ flex: `0 0 calc(${layout.mainSplit}% - 14px)` }}
         >
-          <ThreatActivityChart />
+          <ThreatActivityChart data={[]} />
         </div>
 
         {/* Draggable Vertical Splitter Handle */}
@@ -459,9 +516,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         {/* Panel 2: Digital Twin Preview */}
         <div
           className="resizable-col-panel"
-          style={{ flex: `0 0 calc(${100 - layout.mainSplit}% - 10px)` }}
+          style={{ flex: `0 0 calc(${100 - layout.mainSplit}% - 14px)` }}
         >
-          <DigitalTwinPreview onViewFullTwin={onViewTwin} />
+          <DigitalTwinPreview onViewFullTwin={onViewTwin} nodes={realTwinNodes} />
         </div>
       </div>
 
@@ -509,34 +566,58 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </div>
 
             <div className="findings-list" style={{ flex: 1, overflowY: 'auto' }}>
-              {SAMPLE_FINDINGS.map((finding) => {
-                const isCrit = finding.severity === 'Critical'
-                return (
-                  <div
-                    key={finding.id}
-                    className={`finding-item-row ${isCrit ? 'critical' : 'high'}`}
-                    onClick={() => onSelectFinding(finding)}
-                    role="button"
-                    tabIndex={0}
-                    title="Click to inspect raw wire evidence and remediation options"
-                  >
-                    <div className={`finding-icon-wrap ${isCrit ? 'critical' : 'high'}`}>
-                      <AlertTriangle size={15} />
-                    </div>
+              {realFindings.length === 0 ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    minHeight: '160px',
+                    gap: '8px',
+                    padding: '24px',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  <CheckCircle size={28} style={{ color: 'var(--accent-emerald)', opacity: 0.8 }} />
+                  <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                    No Active Findings Detected
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                    Packets and discovered services have satisfied baseline security signatures.
+                  </span>
+                </div>
+              ) : (
+                realFindings.map((finding) => {
+                  const isCrit = finding.severity === 'Critical'
+                  return (
+                    <div
+                      key={finding.id}
+                      className={`finding-item-row ${isCrit ? 'critical' : 'high'}`}
+                      onClick={() => onSelectFinding(finding)}
+                      role="button"
+                      tabIndex={0}
+                      title="Click to inspect raw wire evidence and remediation options"
+                    >
+                      <div className={`finding-icon-wrap ${isCrit ? 'critical' : 'high'}`}>
+                        <AlertTriangle size={15} />
+                      </div>
 
-                    <div className="finding-meta">
-                      <span className="finding-title">{finding.title}</span>
-                      <span className="finding-subtitle mono">
-                        MITRE {finding.mitreTechnique} • {finding.target}
+                      <div className="finding-meta">
+                        <span className="finding-title">{finding.title}</span>
+                        <span className="finding-subtitle mono">
+                          MITRE {finding.mitreTechnique} • {finding.target}
+                        </span>
+                      </div>
+
+                      <span className={`finding-badge-pill ${isCrit ? 'critical' : 'high'}`}>
+                        {finding.severity}
                       </span>
                     </div>
-
-                    <span className={`finding-badge-pill ${isCrit ? 'critical' : 'high'}`}>
-                      {finding.severity}
-                    </span>
-                  </div>
-                )
-              })}
+                  )
+                })
+              )}
             </div>
           </div>
         </div>
@@ -561,7 +642,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           className="resizable-col-panel"
           style={{ flex: `0 0 calc(${layout.bottomSplit[1]}% - 14px)` }}
         >
-          <AssetRiskDonut onSelectRisk={onSelectRiskCategory} />
+          <AssetRiskDonut data={riskCounts} onSelectRisk={onSelectRiskCategory} />
         </div>
 
         {/* Splitter 2: between Assets and Activity */}
@@ -600,41 +681,42 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </div>
 
             <div className="activity-timeline-list" style={{ flex: 1, overflowY: 'auto' }}>
-              {/* Event 1 */}
-              <div className="timeline-item">
-                <div className="timeline-icon-circle lightning">
-                  <Zap size={14} />
+              {realAuditLogs.length === 0 ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    minHeight: '160px',
+                    gap: '8px',
+                    padding: '24px',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  <Clock size={28} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
+                  <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                    No Recent Activity Logged
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                    Operational events, scans, and defense actions will appear here in real time.
+                  </span>
                 </div>
-                <div className="timeline-body">
-                  <span className="timeline-title">Defense action executed</span>
-                  <span className="timeline-desc">Blocked 10.0.0.56 (policy: auto-contain){/* cgx-allow: lab replay telemetry */}</span>
-                </div>
-                <span className="timeline-time mono">2m ago</span>
-              </div>
-
-              {/* Event 2 */}
-              <div className="timeline-item">
-                <div className="timeline-icon-circle radar">
-                  <Crosshair size={14} />
-                </div>
-                <div className="timeline-body">
-                  <span className="timeline-title">Network scan completed</span>
-                  <span className="timeline-desc">10.0.0.0/24 • 124 hosts • 8 changes{/* cgx-allow: lab replay telemetry */}</span>
-                </div>
-                <span className="timeline-time mono">8m ago</span>
-              </div>
-
-              {/* Event 3 */}
-              <div className="timeline-item">
-                <div className="timeline-icon-circle cube">
-                  <Package size={14} />
-                </div>
-                <div className="timeline-body">
-                  <span className="timeline-title">New asset discovered</span>
-                  <span className="timeline-desc">10.0.0.44 (Linux) • Added to inventory{/* cgx-allow: lab replay telemetry */}</span>
-                </div>
-                <span className="timeline-time mono">12m ago</span>
-              </div>
+              ) : (
+                realAuditLogs.map((log, idx: number) => (
+                  <div key={log.id || idx} className="timeline-item">
+                    <div className="timeline-icon-circle lightning">
+                      <Zap size={14} />
+                    </div>
+                    <div className="timeline-body">
+                      <span className="timeline-title">{log.action || 'Security Action'}</span>
+                      <span className="timeline-desc">{log.details || log.entity_type}</span>
+                    </div>
+                    <span className="timeline-time mono">{log.created_at ? new Date(log.created_at).toLocaleTimeString() : 'Recent'}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

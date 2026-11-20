@@ -22,10 +22,10 @@ interface GlobeHeroProps {
 export const GlobeHero: React.FC<GlobeHeroProps> = ({
   onRunDetection,
   timeRange = 'Last 24 hours',
-  criticalCount = 3,
-  highCount = 7,
-  mediumCount = 9,
-  lowCount = 5,
+  criticalCount = 0,
+  highCount = 0,
+  mediumCount = 0,
+  lowCount = 0,
 }) => {
   return (
     <section className="cg-hero" aria-label="Defense Overview Header">

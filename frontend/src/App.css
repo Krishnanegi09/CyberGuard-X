@@ -915,10 +915,10 @@
   min-height: 0;
 }
 
-/* Vertical Splitter Gutter (floating inside the 20px gap) */
+/* Vertical Splitter Gutter (clean spacing between cards) */
 .split-gutter-col {
-  width: 16px;
-  margin: 0 -18px;
+  width: 8px;
+  margin: 0;
   display: flex;
   align-items: center;
   justify-content: center;

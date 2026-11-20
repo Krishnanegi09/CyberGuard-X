@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Search,
   AlertTriangle,
@@ -30,148 +30,99 @@ export interface AssetRecord {
   gateway: string
 }
 
-const SAMPLE_ASSETS: AssetRecord[] = [
-  {
-    id: 'ast-01',
-    ip: '10.0.0.12', // cgx-allow: lab replay telemetry
-    hostname: 'srv-app-core.sec.local',
-    os: 'Ubuntu Linux 24.04 LTS',
-    kernel: 'Linux 6.8.0-45-generic (x86_64)',
-    mac: '00:1A:2B:3C:4D:5E', // cgx-allow: lab replay telemetry
-    zone: 'DMZ',
-    criticality: 'CRITICAL',
-    riskScore: 94,
-    gateway: '10.0.0.1 (Perimeter Firewall)', // cgx-allow: lab replay telemetry
-    openPorts: [21, 22, 80, 443, 8080],
-    services: [
-      { port: 21, name: 'FTP', version: 'vsftpd 2.3.4 (Backdoor Alert)', proto: 'TCP', security: 'Plaintext / Insecure' },
-      { port: 22, name: 'SSH', version: 'OpenSSH 9.6p1 Ubuntu-3ubuntu13', proto: 'TCP', security: 'Encrypted / SSHv2' },
-      { port: 80, name: 'HTTP', version: 'Nginx 1.26.0 (Reverse Proxy)', proto: 'TCP', security: 'Unencrypted' },
-      { port: 443, name: 'HTTPS', version: 'Nginx 1.26.0 (TLS 1.3)', proto: 'TCP', security: 'TLS_AES_256_GCM_SHA384' },
-      { port: 8080, name: 'Express API', version: 'Node.js 20.14 LTS', proto: 'TCP', security: 'Internal API Gateway' },
-    ],
-    cves: [
-      { id: 'CVE-2024-38077', cvss: 9.8, severity: 'CRITICAL', desc: 'Remote Code Execution vulnerability in Windows Routing and Remote Access Service (RRAS).' }, // cgx-allow: lab replay telemetry
-      { id: 'CVE-2011-2523', cvss: 9.8, severity: 'CRITICAL', desc: 'vsftpd 2.3.4 contains a backdoor in the Smiley Face payload allowing root command execution.' }, // cgx-allow: lab replay telemetry
-    ],
-    openFindingsCount: 3,
-    lastSeen: '1m ago',
-  },
-  {
-    id: 'ast-02',
-    ip: '10.0.0.35', // cgx-allow: lab replay telemetry
-    hostname: 'db-primary.crown.local',
-    os: 'Debian GNU/Linux 12 (Bookworm)',
-    kernel: 'Linux 6.1.0-21-amd64',
-    mac: '00:1A:2B:3C:4D:60', // cgx-allow: lab replay telemetry
-    zone: 'Crown Jewel',
-    criticality: 'CRITICAL',
-    riskScore: 78,
-    gateway: '10.0.0.33 (Internal Trust GW)', // cgx-allow: lab replay telemetry
-    openPorts: [5432, 22],
-    services: [
-      { port: 5432, name: 'PostgreSQL', version: 'PostgreSQL 17.2 Cluster', proto: 'TCP', security: 'SCRAM-SHA-256 Auth' },
-      { port: 22, name: 'SSH', version: 'OpenSSH 9.2p1 Debian-2+deb12u3', proto: 'TCP', security: 'Key-Based Auth' },
-    ],
-    cves: [
-      { id: 'CVE-2024-10979', cvss: 8.8, severity: 'HIGH', desc: 'PostgreSQL PL/Perl environment variable privilege escalation.' }, // cgx-allow: lab replay telemetry
-    ],
-    openFindingsCount: 1,
-    lastSeen: '3m ago',
-  },
-  {
-    id: 'ast-03',
-    ip: '10.0.0.18', // cgx-allow: lab replay telemetry
-    hostname: 'auth-gateway.internal.local',
-    os: 'Alpine Linux 3.20',
-    kernel: 'Linux 6.6.32-0-virt',
-    mac: '00:1A:2B:3C:4D:71', // cgx-allow: lab replay telemetry
-    zone: 'Internal',
-    criticality: 'HIGH',
-    riskScore: 72,
-    gateway: '10.0.0.17 (Internal Core Switch)', // cgx-allow: lab replay telemetry
-    openPorts: [22, 6379, 9000],
-    services: [
-      { port: 22, name: 'SSH', version: 'OpenSSH 9.7p1', proto: 'TCP', security: 'MFA Enforced' },
-      { port: 6379, name: 'Redis', version: 'Redis Core 7.2.5', proto: 'TCP', security: 'Internal Cluster Bus' },
-      { port: 9000, name: 'Vault Agent', version: 'HashiCorp Vault 1.16', proto: 'TCP', security: 'mTLS Enforced' },
-    ],
-    cves: [
-      { id: 'CVE-2024-21626', cvss: 8.6, severity: 'HIGH', desc: 'runc file descriptor leak allowing container breakout.' }, // cgx-allow: lab replay telemetry
-    ],
-    openFindingsCount: 2,
-    lastSeen: '5m ago',
-  },
-  {
-    id: 'ast-04',
-    ip: '10.0.0.25', // cgx-allow: lab replay telemetry
-    hostname: 'legacy-ftp.storage.local',
-    os: 'CentOS Linux 7.9',
-    kernel: 'Linux 3.10.0-1160.el7.x86_64',
-    mac: '00:1A:2B:3C:4D:82', // cgx-allow: lab replay telemetry
-    zone: 'Internal',
-    criticality: 'HIGH',
-    riskScore: 84,
-    gateway: '10.0.0.17 (Internal Core Switch)', // cgx-allow: lab replay telemetry
-    openPorts: [21, 22],
-    services: [
-      { port: 21, name: 'FTP', version: 'vsftpd 2.3.4', proto: 'TCP', security: 'Unencrypted' },
-      { port: 22, name: 'SSH', version: 'OpenSSH 7.4p1', proto: 'TCP', security: 'Legacy Crypto Suite' },
-    ],
-    cves: [
-      { id: 'CVE-2011-2523', cvss: 9.8, severity: 'CRITICAL', desc: 'vsftpd backdoor execution vulnerability.' }, // cgx-allow: lab replay telemetry
-      { id: 'CVE-2018-15473', cvss: 7.5, severity: 'HIGH', desc: 'OpenSSH user enumeration via malformed packets.' }, // cgx-allow: lab replay telemetry
-    ],
-    openFindingsCount: 2,
-    lastSeen: '10m ago',
-  },
-  {
-    id: 'ast-05',
-    ip: '10.0.0.20', // cgx-allow: lab replay telemetry
-    hostname: 'operator-station.soc.local',
-    os: 'macOS Sonoma 14.6',
-    kernel: 'Darwin 23.6.0 (ARM64)',
-    mac: '00:1A:2B:3C:4D:93', // cgx-allow: lab replay telemetry
-    zone: 'Internal',
-    criticality: 'LOW',
-    riskScore: 18,
-    gateway: '10.0.0.17 (Internal Core Switch)', // cgx-allow: lab replay telemetry
-    openPorts: [22],
-    services: [
-      { port: 22, name: 'SSH', version: 'OpenSSH 9.4p1', proto: 'TCP', security: 'Hardware Security Key' },
-    ],
-    cves: [],
-    openFindingsCount: 0,
-    lastSeen: '12m ago',
-  },
-  {
-    id: 'ast-06',
-    ip: '10.0.0.14', // cgx-allow: lab replay telemetry
-    hostname: 'gw-perimeter.dmz.local',
-    os: 'FreeBSD 14.1-RELEASE',
-    kernel: 'FreeBSD 14.1-RELEASE amd64',
-    mac: '00:1A:2B:3C:4D:A4', // cgx-allow: lab replay telemetry
-    zone: 'DMZ',
-    criticality: 'HIGH',
-    riskScore: 35,
-    gateway: '10.0.0.1 (Border Upstream)', // cgx-allow: lab replay telemetry
-    openPorts: [80, 443],
-    services: [
-      { port: 80, name: 'HTTP', version: 'pfSense WebGUI Redirect', proto: 'TCP', security: 'Redirects to 443' },
-      { port: 443, name: 'HTTPS', version: 'pfSense Admin Portal', proto: 'TCP', security: 'TLS 1.3 Strict' },
-    ],
-    cves: [],
-    openFindingsCount: 0,
-    lastSeen: '2m ago',
-  },
-]
 
-export const AssetsView: React.FC = () => {
+interface RawAssetPort {
+  port: number
+  service?: string
+  product?: string
+  version?: string
+  protocol?: string
+}
+
+interface RawAssetEntity {
+  id: string
+  ip_address: string
+  hostname?: string
+  operating_system?: string
+  last_seen?: string
+  ports?: RawAssetPort[]
+}
+
+interface AssetsViewProps {
+  organizationId?: string
+  getIdToken?: () => Promise<string>
+}
+
+export const AssetsView: React.FC<AssetsViewProps> = ({ organizationId, getIdToken }) => {
   const [search, setSearch] = useState('')
   const [zoneFilter, setZoneFilter] = useState('ALL')
   const [selectedAsset, setSelectedAsset] = useState<AssetRecord | null>(null)
+  const [assets, setAssets] = useState<AssetRecord[]>([])
+  const [loading, setLoading] = useState(false)
 
-  const filtered = SAMPLE_ASSETS.filter((a) => {
+  useEffect(() => {
+    let mounted = true
+    const fetchAssets = async () => {
+      if (!organizationId || !getIdToken) return
+      setLoading(true)
+      try {
+        const token = await getIdToken()
+        const res = await fetch(`/api/v1/organizations/${encodeURIComponent(organizationId)}/assets`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (mounted && res.ok) {
+          const rawAssets = await res.json()
+          if (Array.isArray(rawAssets)) {
+            const mapped: AssetRecord[] = (rawAssets as RawAssetEntity[]).map((a) => {
+              const openPorts = (a.ports || []).map((p) => p.port)
+              const hasDb = openPorts.some((p: number) => [5432, 3306, 27017, 1433].includes(p))
+              const hasWeb = openPorts.some((p: number) => [80, 443, 8080].includes(p))
+              const zone: 'DMZ' | 'Internal' | 'Crown Jewel' = hasDb ? 'Crown Jewel' : hasWeb ? 'DMZ' : 'Internal'
+              const criticality = hasDb ? 'CRITICAL' : hasWeb ? 'HIGH' : 'MEDIUM'
+              const riskScore = hasDb ? 85 : hasWeb ? 65 : 35
+
+              const services = (a.ports || []).map((p) => ({
+                port: p.port,
+                name: p.service || 'unknown',
+                version: p.version ? `${p.product || ''} ${p.version}`.trim() : (p.product || 'Standard Daemon'),
+                proto: p.protocol || 'tcp',
+                security: [21, 23, 80].includes(p.port) ? 'Unencrypted / Insecure' : 'Encrypted Transport',
+              }))
+
+              return {
+                id: `ast-${a.id}`,
+                ip: a.ip_address,
+                hostname: a.hostname || `Host-${a.ip_address}`,
+                os: a.operating_system || 'Discovered Linux / Unix',
+                kernel: 'Discovered via L3 Reconnaissance',
+                mac: 'Active Observed Interface',
+                zone,
+                criticality,
+                riskScore,
+                openPorts,
+                services,
+                cves: [],
+                openFindingsCount: services.filter((s) => s.security.includes('Insecure')).length,
+                lastSeen: a.last_seen ? new Date(a.last_seen).toLocaleTimeString() : 'Recent',
+                gateway: '10.0.0.1 (Discovered Gateway)',
+              }
+            })
+            setAssets(mapped)
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load real assets', e)
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+    void fetchAssets()
+    return () => {
+      mounted = false
+    }
+  }, [organizationId, getIdToken])
+
+  const filtered = assets.filter((a) => {
     const matchesZone = zoneFilter === 'ALL' || a.zone.toUpperCase() === zoneFilter
     const matchesSearch =
       a.ip.includes(search) ||
@@ -417,15 +368,15 @@ export const AssetsView: React.FC = () => {
         <div className="incident-stat-strip">
           <div className="stat-pill-item neutral">
             <span className="stat-pill-label">Total Hosts</span>
-            <span className="stat-pill-val">124</span>
+            <span className="stat-pill-val">{assets.length}</span>
           </div>
           <div className="stat-pill-item high">
             <span className="stat-pill-label">High Exposure</span>
-            <span className="stat-pill-val">24</span>
+            <span className="stat-pill-val">{assets.filter((a) => a.criticality === 'CRITICAL' || a.criticality === 'HIGH').length}</span>
           </div>
           <div className="stat-pill-item contained">
             <span className="stat-pill-label">Monitored</span>
-            <span className="stat-pill-val">100%</span>
+            <span className="stat-pill-val">{assets.length > 0 ? '100%' : '0%'}</span>
           </div>
         </div>
       </div>
@@ -461,6 +412,32 @@ export const AssetsView: React.FC = () => {
       {/* Table with Defined Column Widths, No Wrap, and Click-To-Open Page */}
       <div className="cg-card table-card">
         <div className="table-wrap">
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 20px' }}>
+              <RefreshCw size={24} className="spin" style={{ opacity: 0.6 }} />
+              <span style={{ marginLeft: 10, color: 'var(--text-muted)' }}>Querying observed network assets...</span>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '60px 20px',
+                gap: '12px',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <Server size={38} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
+              <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                No Assets Discovered Yet
+              </span>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', maxWidth: '400px', textAlign: 'center' }}>
+                No host devices exist in this organization inventory. Navigate to 'Scopes & Scans' to define an authorized CIDR range and trigger discovery.
+              </span>
+            </div>
+          ) : (
           <table className="cg-table">
             <thead>
               <tr>
@@ -536,6 +513,7 @@ export const AssetsView: React.FC = () => {
               })}
             </tbody>
           </table>
+          )}
         </div>
       </div>
     </div>

@@ -8,7 +8,12 @@ from backend.app.api.v1.auth import router as auth_router
 from backend.app.api.v1.discovery import router as discovery_router
 from backend.app.api.v1.network_scopes import router as network_scopes_router
 from backend.app.api.v1.nids import router as nids_router
-from backend.app.api.v1.monitoring import router as monitoring_router
+from backend.app.api.v1.monitoring import (
+    org_router as monitoring_org_router,
+    router as monitoring_router,
+)
+from backend.app.api.v1.ml import router as ml_router
+from backend.app.api.v1.twin import router as twin_router
 from backend.app.api.v1.organizations import router as organizations_router
 from backend.app.core.config import settings
 from backend.app.db.session import engine
@@ -69,6 +74,21 @@ app.include_router(
 
 app.include_router(
     monitoring_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    monitoring_org_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    ml_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    twin_router,
     prefix="/api/v1",
 )
 

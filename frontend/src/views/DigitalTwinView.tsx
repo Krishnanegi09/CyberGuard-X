@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   RefreshCw,
   AlertTriangle,
@@ -192,12 +192,41 @@ const TWIN_NODES: TwinNode[] = [
   },
 ]
 
-export const DigitalTwinView: React.FC = () => {
+interface DigitalTwinViewProps {
+  organizationId?: string
+  getIdToken?: () => Promise<string>
+}
+
+export const DigitalTwinView: React.FC<DigitalTwinViewProps> = ({ organizationId, getIdToken }) => {
   const [selectedTrajectoryId, setSelectedTrajectoryId] = useState<number>(1)
   const [activeZoneFilter, setActiveZoneFilter] = useState<'ALL' | 'DMZ' | 'INTERNAL' | 'CROWN'>('ALL')
   const [inspectedNode, setInspectedNode] = useState<TwinNode | null>(null)
   const [zoomLevel, setZoomLevel] = useState<number>(1)
   const [isRebuilding, setIsRebuilding] = useState<boolean>(false)
+  const [twinData, setTwinData] = useState<{ nodes: unknown[]; edges: unknown[]; total_nodes: number } | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    const fetchGraph = async () => {
+      if (!organizationId || !getIdToken) return
+      try {
+        const token = await getIdToken()
+        const res = await fetch(`/api/v1/organizations/${encodeURIComponent(organizationId)}/twin/graph`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (mounted && res.ok) {
+          const data = await res.json()
+          setTwinData(data)
+        }
+      } catch (e) {
+        console.warn('Failed to load digital twin graph', e)
+      }
+    }
+    void fetchGraph()
+    return () => {
+      mounted = false
+    }
+  }, [organizationId, getIdToken])
 
   const activeTrajectory =
     ATTACK_TRAJECTORIES.find((t) => t.id === selectedTrajectoryId) || ATTACK_TRAJECTORIES[0]
@@ -303,6 +332,29 @@ export const DigitalTwinView: React.FC = () => {
 
           {/* SVG Canvas Area */}
           <div className="full-twin-canvas-wrap">
+            {twinData && twinData.total_nodes === 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  minHeight: '340px',
+                  gap: '12px',
+                  color: 'var(--text-muted)',
+                  padding: '40px',
+                }}
+              >
+                <Shield size={44} style={{ color: 'var(--accent-cyan)', opacity: 0.6 }} />
+                <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  No Discovered Topology In This Organization
+                </span>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary)', maxWidth: '440px', textAlign: 'center' }}>
+                  The Digital Twin synthesizes live graph models directly from verified host observations. Define an active network scope and run discovery scanning to populate nodes and simulate attack reachability.
+                </span>
+              </div>
+            ) : (
             <svg
               viewBox="0 0 740 370"
               className="full-twin-svg"
@@ -631,6 +683,7 @@ export const DigitalTwinView: React.FC = () => {
                 })}
               </g>
             </svg>
+            )}
           </div>
 
           {/* Graph Legend */}

@@ -45,6 +45,12 @@ const emptyStats: MonitoringStats = {
 
 const DEFAULT_INTERFACES = ['en0', 'lo0', 'en1', 'en2', 'bridge0', 'utun0', 'utun1']
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function isValidUUID(value: string | null | undefined): boolean {
+  return typeof value === 'string' && UUID_REGEX.test(value.trim())
+}
+
 function formatAddress(value: string) {
   return value.length > 24 ? `${value.slice(0, 12)}…${value.slice(-9)}` : value
 }
@@ -60,23 +66,24 @@ export default function NIDSMonitor({
   const [availableInterfaces, setAvailableInterfaces] = useState<string[]>(DEFAULT_INTERFACES)
   const [scopes, setScopes] = useState<NetworkScope[]>([])
   const [activeScopeId, setActiveScopeId] = useState(
-    initialScopeId && initialScopeId !== 'default-scope' ? initialScopeId : ''
+    isValidUUID(initialScopeId) ? initialScopeId : ''
   )
   const [busy, setBusy] = useState(false)
+  const [scanningIfaces, setScanningIfaces] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Load scopes if scopeId is not a valid scope
   useEffect(() => {
     let mounted = true
     const fetchScopes = async () => {
-      if (!organizationId) return
+      if (!isValidUUID(organizationId)) return
       try {
         const token = await getIdToken()
         const scopeList = await getNetworkScopes(organizationId, token)
         if (mounted) {
           setScopes(scopeList)
           const active = scopeList.find((s) => s.status === 'active') || scopeList[0]
-          if (active && (!activeScopeId || activeScopeId === 'default-scope')) {
+          if (active && !isValidUUID(activeScopeId)) {
             setActiveScopeId(active.id)
           }
         }
@@ -91,39 +98,62 @@ export default function NIDSMonitor({
   }, [organizationId, getIdToken, activeScopeId])
 
   // Probe available interfaces from backend
+  const fetchInterfaces = useCallback(async () => {
+    if (!isValidUUID(organizationId)) return
+    setScanningIfaces(true)
+    try {
+      const token = await getIdToken()
+      const url = isValidUUID(activeScopeId)
+        ? `/api/v1/organizations/${encodeURIComponent(organizationId)}/network-scopes/${encodeURIComponent(activeScopeId)}/monitoring/interfaces`
+        : `/api/v1/organizations/${encodeURIComponent(organizationId)}/monitoring/interfaces`
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const list: string[] = await res.json()
+        if (Array.isArray(list) && list.length > 0) {
+          setAvailableInterfaces(list)
+          setNetworkInterface((prev) => (list.includes(prev) ? prev : list[0]))
+        }
+      }
+    } catch (e) {
+      console.warn('Using default interface probe list', e)
+    } finally {
+      setScanningIfaces(false)
+    }
+  }, [organizationId, activeScopeId, getIdToken])
+
   useEffect(() => {
+    if (!isValidUUID(organizationId)) return
     let mounted = true
-    const fetchInterfaces = async () => {
-      if (!organizationId || !activeScopeId || activeScopeId === 'default-scope') return
+    const load = async () => {
       try {
         const token = await getIdToken()
-        const res = await fetch(
-          `/api/v1/organizations/${encodeURIComponent(organizationId)}/network-scopes/${encodeURIComponent(activeScopeId)}/monitoring/interfaces`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        )
-        if (res.ok) {
+        const url = isValidUUID(activeScopeId)
+          ? `/api/v1/organizations/${encodeURIComponent(organizationId)}/network-scopes/${encodeURIComponent(activeScopeId)}/monitoring/interfaces`
+          : `/api/v1/organizations/${encodeURIComponent(organizationId)}/monitoring/interfaces`
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (mounted && res.ok) {
           const list: string[] = await res.json()
-          if (mounted && Array.isArray(list) && list.length > 0) {
+          if (Array.isArray(list) && list.length > 0) {
             setAvailableInterfaces(list)
-            if (!list.includes(networkInterface)) {
-              setNetworkInterface(list[0])
-            }
+            setNetworkInterface((prev) => (list.includes(prev) ? prev : list[0]))
           }
         }
       } catch (e) {
         console.warn('Using default interface probe list', e)
       }
     }
-    void fetchInterfaces()
+    void load()
     return () => {
       mounted = false
     }
-  }, [organizationId, activeScopeId, getIdToken, networkInterface])
+  }, [organizationId, activeScopeId, getIdToken])
 
   const refresh = useCallback(async () => {
-    if (!activeScopeId || activeScopeId === 'default-scope') return
+    if (!isValidUUID(organizationId) || !isValidUUID(activeScopeId)) return
     try {
       const token = await getIdToken()
       const [monitoring, alertList] = await Promise.all([
@@ -143,17 +173,17 @@ export default function NIDSMonitor({
   }, [getIdToken, organizationId, activeScopeId])
 
   useEffect(() => {
-    if (!activeScopeId || activeScopeId === 'default-scope') return
+    if (!isValidUUID(organizationId) || !isValidUUID(activeScopeId)) return
     const initialLoad = window.setTimeout(() => void refresh(), 0)
     const interval = window.setInterval(() => void refresh(), 4000)
     return () => {
       window.clearTimeout(initialLoad)
       window.clearInterval(interval)
     }
-  }, [refresh, activeScopeId])
+  }, [refresh, organizationId, activeScopeId])
 
   const toggle = async () => {
-    if (!activeScopeId || activeScopeId === 'default-scope') {
+    if (!isValidUUID(organizationId) || !isValidUUID(activeScopeId)) {
       setError('Please select or register an active network scope first.')
       return
     }
@@ -178,7 +208,7 @@ export default function NIDSMonitor({
   }
 
   const resolve = async (alert: NIDSAlert) => {
-    if (!activeScopeId || activeScopeId === 'default-scope') return
+    if (!isValidUUID(organizationId) || !isValidUUID(activeScopeId)) return
     try {
       const token = await getIdToken()
       const updated = await updateNIDSAlertStatus(
@@ -287,9 +317,29 @@ export default function NIDSMonitor({
 
           {/* Device Dropdown scanning all available options */}
           <div className="interface-input-wrap">
-            <label className="interface-input-label" htmlFor="nids-iface-select">
-              Device
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+              <label className="interface-input-label" htmlFor="nids-iface-select">
+                Device ({availableInterfaces.length} scanned)
+              </label>
+              <button
+                type="button"
+                onClick={() => void fetchInterfaces()}
+                disabled={busy || scanningIfaces || isRunning}
+                title="Scan all network interfaces on this machine"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--accent-cyan)',
+                  cursor: isRunning ? 'not-allowed' : 'pointer',
+                  padding: '0 2px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  opacity: isRunning ? 0.5 : 1,
+                }}
+              >
+                <RefreshCw size={11} className={scanningIfaces ? 'spinning' : ''} />
+              </button>
+            </div>
             <select
               id="nids-iface-select"
               className="nids-interface-select"

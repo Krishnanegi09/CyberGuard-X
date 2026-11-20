@@ -40,22 +40,27 @@ def _stats(service) -> MonitoringStats:
     return MonitoringStats(**asdict(service.stats()))
 
 
+org_router = APIRouter(
+    prefix="/organizations/{organization_id}/monitoring",
+    tags=["NIDS Monitoring"],
+)
+
+
+@org_router.get("/interfaces", response_model=list[str])
+def list_org_monitoring_interfaces(
+    organization_id: UUID,
+    membership=Depends(require_organization_permission("observations.read")),
+):
+    return sorted(list(monitoring_manager.get_allowed_interfaces()))
+
+
 @router.get("/interfaces", response_model=list[str])
 def list_monitoring_interfaces(
     organization_id: UUID,
     scope_id: UUID,
     membership=Depends(require_organization_permission("observations.read")),
 ):
-    try:
-        import scapy.all as scapy
-        raw_ifaces = scapy.get_if_list()
-    except Exception:
-        raw_ifaces = list(settings.capture_allowed_interfaces)
-    available = [
-        iface for iface in raw_ifaces
-        if iface in settings.capture_allowed_interfaces
-    ]
-    return sorted(list(set(available or list(settings.capture_allowed_interfaces))))
+    return sorted(list(monitoring_manager.get_allowed_interfaces()))
 
 
 @router.get("/status", response_model=MonitoringStats)

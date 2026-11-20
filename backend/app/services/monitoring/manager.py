@@ -1,10 +1,36 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Iterable
 from threading import Lock
 from uuid import UUID
 
 from backend.app.services.monitoring.capture_service import PacketCaptureService
+
+SAFE_IFACE_PATTERN = re.compile(r"^[a-zA-Z0-9_\-\.]{1,32}$")
+
+
+def get_system_interfaces(additional_allowed: Iterable[str] = ()) -> list[str]:
+    """Scan and return all sanitized local network interfaces available on the host."""
+    found: set[str] = set()
+    try:
+        import scapy.all as scapy
+        for iface in scapy.get_if_list():
+            iface_str = str(iface).strip()
+            if SAFE_IFACE_PATTERN.match(iface_str):
+                found.add(iface_str)
+    except Exception:
+        pass
+
+    for iface in additional_allowed:
+        iface_str = str(iface).strip()
+        if SAFE_IFACE_PATTERN.match(iface_str):
+            found.add(iface_str)
+
+    if not found:
+        found.update(["en0", "lo0"])
+
+    return sorted(list(found))
 
 
 class MonitoringManager:
@@ -27,6 +53,9 @@ class MonitoringManager:
         self._allowed_interfaces = interfaces
         self._service_factory = service_factory
         self._services: dict[tuple[UUID, UUID], PacketCaptureService] = {}
+
+    def get_allowed_interfaces(self) -> frozenset[str]:
+        return self._allowed_interfaces
 
     def start(
         self,

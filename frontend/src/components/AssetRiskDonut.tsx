@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
+import { Shield } from 'lucide-react'
 
-interface AssetRiskData {
+export interface AssetRiskData {
   critical: number
   high: number
   medium: number
@@ -8,12 +9,12 @@ interface AssetRiskData {
   total: number
 }
 
-const DEFAULT_DATA: AssetRiskData = {
-  critical: 6,
-  high: 18,
-  medium: 37,
-  low: 63,
-  total: 124,
+const EMPTY_DATA: AssetRiskData = {
+  critical: 0,
+  high: 0,
+  medium: 0,
+  low: 0,
+  total: 0,
 }
 
 interface AssetRiskDonutProps {
@@ -22,7 +23,7 @@ interface AssetRiskDonutProps {
 }
 
 export const AssetRiskDonut: React.FC<AssetRiskDonutProps> = ({
-  data = DEFAULT_DATA,
+  data = EMPTY_DATA,
   onSelectRisk,
 }) => {
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null)
@@ -108,7 +109,31 @@ export const AssetRiskDonut: React.FC<AssetRiskDonutProps> = ({
         <h3 className="card-title">Assets by Risk</h3>
       </div>
 
-      <div className="risk-donut-layout">
+      {data.total === 0 ? (
+        <div
+          className="donut-empty-state"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+            minHeight: '180px',
+            gap: '8px',
+            color: 'var(--text-muted)',
+            padding: '20px',
+          }}
+        >
+          <Shield size={32} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
+          <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+            No Assets in Inventory
+          </span>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
+            Run network discovery to identify active assets and estimate risk posture.
+          </span>
+        </div>
+      ) : (
+        <div className="risk-donut-layout">
         {/* Donut Chart SVG */}
         <div className="donut-canvas-container" title="Asset risk distribution">
           <svg viewBox="0 0 140 140" className="donut-svg" role="img" aria-label="Donut chart showing asset risk distribution">
@@ -199,6 +224,7 @@ export const AssetRiskDonut: React.FC<AssetRiskDonutProps> = ({
           })}
         </div>
       </div>
+      )}
     </div>
   )
 }

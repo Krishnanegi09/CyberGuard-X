@@ -3,6 +3,7 @@ import { ArrowUpRight, X, Shield, AlertTriangle } from 'lucide-react'
 
 interface DigitalTwinPreviewProps {
   onViewFullTwin: () => void
+  nodes?: TopologyNode[]
 }
 
 interface TopologyNode {
@@ -107,7 +108,10 @@ const NODES: TopologyNode[] = [
   },
 ]
 
-export const DigitalTwinPreview: React.FC<DigitalTwinPreviewProps> = ({ onViewFullTwin }) => {
+export const DigitalTwinPreview: React.FC<DigitalTwinPreviewProps> = ({
+  onViewFullTwin,
+  nodes = [],
+}) => {
   const [hoveredNode, setHoveredNode] = useState<TopologyNode | null>(null)
   const [inspectedNode, setInspectedNode] = useState<TopologyNode | null>(null)
 
@@ -130,7 +134,32 @@ export const DigitalTwinPreview: React.FC<DigitalTwinPreviewProps> = ({ onViewFu
       </div>
 
       <div className="twin-canvas-wrap">
-        <svg viewBox="0 0 500 240" className="twin-svg">
+        {nodes.length === 0 ? (
+          <div
+            className="twin-empty-state"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+              minHeight: '220px',
+              gap: '10px',
+              color: 'var(--text-muted)',
+              padding: '24px',
+            }}
+          >
+            <Shield size={34} style={{ color: 'var(--accent-cyan)', opacity: 0.7 }} />
+            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+              Digital Twin Topology Idle
+            </span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '300px' }}>
+              Discovered hosts and active services will automatically map into this interactive digital twin model.
+            </span>
+          </div>
+        ) : (
+          <>
+          <svg viewBox="0 0 500 240" className="twin-svg">
           <defs>
             {/* Red Compromised Threat Aura */}
             <radialGradient id="compromisedAura" cx="50%" cy="50%" r="50%">
@@ -352,6 +381,8 @@ export const DigitalTwinPreview: React.FC<DigitalTwinPreviewProps> = ({ onViewFu
             <span>Choke Point</span>
           </div>
         </div>
+        </>
+        )}
       </div>
 
       {/* Contextual Asset Inspector Modal on Node Click */}

@@ -176,16 +176,32 @@ export default function App() {
             onSelectFinding={(f) => setSelectedFinding(f)}
             onSelectRiskCategory={() => setActiveNav('assets')}
             onViewLiveActivity={() => setActiveNav('nids')}
+            organizationId={selectedOrg?.id || ''}
+            getIdToken={getIdToken}
           />
         )}
 
         {activeNav === 'findings' && (
-          <FindingsView onSelectFinding={(f) => setSelectedFinding(f)} />
+          <FindingsView
+            onSelectFinding={(f) => setSelectedFinding(f)}
+            organizationId={selectedOrg?.id || ''}
+            getIdToken={getIdToken}
+          />
         )}
 
-        {activeNav === 'assets' && <AssetsView />}
+        {activeNav === 'assets' && (
+          <AssetsView
+            organizationId={selectedOrg?.id || ''}
+            getIdToken={getIdToken}
+          />
+        )}
 
-        {activeNav === 'twin' && <DigitalTwinView />}
+        {activeNav === 'twin' && (
+          <DigitalTwinView
+            organizationId={selectedOrg?.id || ''}
+            getIdToken={getIdToken}
+          />
+        )}
 
         {activeNav === 'simulations' && <SimulationsView />}
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
+import { CheckCircle } from 'lucide-react'
 
-interface DataPoint {
+export interface DataPoint {
   time: string
   events: number
   xPercent: number
@@ -12,26 +13,14 @@ interface ThreatActivityChartProps {
   isLoading?: boolean
 }
 
-const DEFAULT_POINTS: DataPoint[] = [
-  { time: '00:00', events: 18, xPercent: 5, yVal: 18 },
-  { time: '02:00', events: 22, xPercent: 14, yVal: 22 },
-  { time: '04:00', events: 20, xPercent: 23, yVal: 20 },
-  { time: '06:00', events: 28, xPercent: 32, yVal: 28 },
-  { time: '08:00', events: 38, xPercent: 41, yVal: 38 },
-  { time: '10:00', events: 30, xPercent: 50, yVal: 30 },
-  { time: '12:00', events: 45, xPercent: 59, yVal: 45 },
-  { time: '14:20', events: 72, xPercent: 71, yVal: 72 }, // Telemetry Peak
-  { time: '16:00', events: 34, xPercent: 78, yVal: 34 },
-  { time: '18:00', events: 24, xPercent: 88, yVal: 24 },
-  { time: '20:00', events: 19, xPercent: 96, yVal: 19 },
-]
-
 export const ThreatActivityChart: React.FC<ThreatActivityChartProps> = ({
-  data = DEFAULT_POINTS,
+  data = [],
   isLoading = false,
 }) => {
-  // CRITICAL FIX: Tooltip is NOT visible by default. Appears ONLY on pointer hover/focus!
+  // Tooltip is NOT visible by default. Appears ONLY on pointer hover/focus!
   const [hoveredPoint, setHoveredPoint] = useState<DataPoint | null>(null)
+
+  const hasEvents = data.length > 0 && data.some((p) => p.events > 0)
 
   // Chart dimensions in SVG coordinates
   const svgWidth = 600
@@ -44,15 +33,17 @@ export const ThreatActivityChart: React.FC<ThreatActivityChartProps> = ({
   const usableWidth = svgWidth - paddingLeft - paddingRight
   const usableHeight = svgHeight - paddingTop - paddingBottom
 
-  // Calculate coordinates for SVG curve
-  const points = data.map((pt) => {
-    const x = paddingLeft + (pt.xPercent / 100) * usableWidth
-    const y = paddingTop + usableHeight - (pt.yVal / 100) * usableHeight
-    return { ...pt, x, y }
-  })
+  // Calculate coordinates for SVG curve if events exist
+  const points = hasEvents
+    ? data.map((pt) => {
+        const x = paddingLeft + (pt.xPercent / 100) * usableWidth
+        const y = paddingTop + usableHeight - (pt.yVal / 100) * usableHeight
+        return { ...pt, x, y }
+      })
+    : []
 
   // Build smooth cubic bezier path
-  let pathD = `M ${points[0].x} ${points[0].y}`
+  let pathD = points.length > 0 ? `M ${points[0].x} ${points[0].y}` : ''
   for (let i = 0; i < points.length - 1; i++) {
     const p0 = i > 0 ? points[i - 1] : points[0]
     const p1 = points[i]
@@ -68,9 +59,12 @@ export const ThreatActivityChart: React.FC<ThreatActivityChartProps> = ({
   }
 
   // Area path closing to bottom
-  const areaD = `${pathD} L ${points[points.length - 1].x} ${paddingTop + usableHeight} L ${points[0].x} ${paddingTop + usableHeight} Z`
+  const areaD =
+    points.length > 0
+      ? `${pathD} L ${points[points.length - 1].x} ${paddingTop + usableHeight} L ${points[0].x} ${paddingTop + usableHeight} Z`
+      : ''
 
-  const activeSvgPoint = hoveredPoint ? points.find((p) => p.time === hoveredPoint.time) : null
+  const activeSvgPoint = hoveredPoint && points.length > 0 ? points.find((p) => p.time === hoveredPoint.time) : null
 
   return (
     <div className="cg-card threat-activity-card">
@@ -84,6 +78,28 @@ export const ThreatActivityChart: React.FC<ThreatActivityChartProps> = ({
       <div className="chart-canvas-wrap" onMouseLeave={() => setHoveredPoint(null)}>
         {isLoading ? (
           <div className="chart-loading-state">Loading telemetry...</div>
+        ) : !hasEvents ? (
+          <div
+            className="chart-empty-state"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+              minHeight: '180px',
+              color: 'var(--text-muted)',
+              gap: '10px',
+            }}
+          >
+            <CheckCircle size={32} style={{ color: 'var(--accent-emerald)', opacity: 0.8 }} />
+            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+              No Threat Activity Detected
+            </span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
+              0 security alerts recorded. Network telemetry is normal.
+            </span>
+          </div>
         ) : (
           <svg
             viewBox={`0 0 ${svgWidth} ${svgHeight}`}
