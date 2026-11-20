@@ -41,7 +41,11 @@ function getAuthErrorMessage(error: unknown): string {
     : 'Authentication failed. Please check your credentials.'
 }
 
-export default function AuthScreen() {
+interface AuthScreenProps {
+  onBackToHome?: () => void
+}
+
+export default function AuthScreen({ onBackToHome }: AuthScreenProps = {}) {
   const {
     firebaseUser,
     loading,
@@ -191,6 +195,24 @@ export default function AuthScreen() {
       <main className="auth-card" aria-labelledby="auth-heading">
         {/* Brand Header */}
         <div className="auth-header">
+          {onBackToHome && (
+            <button
+              type="button"
+              className="auth-btn-ghost"
+              style={{
+                marginBottom: '14px',
+                padding: '4px 10px',
+                fontSize: '12px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                alignSelf: 'flex-start',
+              }}
+              onClick={onBackToHome}
+            >
+              ← Back to Platform Overview
+            </button>
+          )}
           <div className="auth-brand-badge">
             <span className="auth-brand-cx">CX</span>
           </div>

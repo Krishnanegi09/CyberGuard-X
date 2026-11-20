@@ -19,6 +19,7 @@ import { CommandPalette } from './components/CommandPalette'
 import { RunDetectionModal } from './components/RunDetectionModal'
 import { EmergencyStopModal } from './components/EmergencyStopModal'
 import AuthScreen from './AuthScreen'
+import HomePage from './HomePage'
 import { useAuth } from './context/useAuth'
 import {
   getOrganizations,
@@ -68,6 +69,7 @@ export default function App() {
 
   // Navigation & Modal State
   const [activeNav, setActiveNav] = useState<NavItemKey>('overview')
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const [selectedFinding, setSelectedFinding] = useState<FindingDetail | null>(null)
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
   const [isRunDetectionOpen, setIsRunDetectionOpen] = useState(false)
@@ -174,7 +176,15 @@ export default function App() {
   }
 
   if (!firebaseUser) {
-    return <AuthScreen />
+    if (showAuthModal) {
+      return <AuthScreen onBackToHome={() => setShowAuthModal(false)} />
+    }
+    return (
+      <HomePage
+        onLaunchConsole={() => setShowAuthModal(true)}
+        isAuthenticated={false}
+      />
+    )
   }
 
   return (
@@ -209,6 +219,15 @@ export default function App() {
         />
 
         {/* View Switcher */}
+        {activeNav === 'home' && (
+          <div className="view-container" style={{ padding: 0 }}>
+            <HomePage
+              onLaunchConsole={() => setActiveNav('overview')}
+              isAuthenticated={true}
+            />
+          </div>
+        )}
+
         {activeNav === 'overview' && (
           <OverviewView
             onRunDetection={() => setIsRunDetectionOpen(true)}

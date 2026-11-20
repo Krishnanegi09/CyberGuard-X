@@ -9,6 +9,7 @@ import {
   ArrowRight,
   X,
   Building,
+  Globe,
   type LucideIcon,
 } from 'lucide-react'
 import type { NavItemKey } from './Sidebar'
@@ -62,6 +63,17 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   if (!isOpen) return null
 
   const items: PaletteItem[] = [
+    {
+      id: 'nav-home',
+      title: 'Home Platform Portal',
+      category: 'Navigation',
+      icon: Globe,
+      action: () => {
+        onNavigate('home')
+        onClose()
+      },
+      meta: 'Executive Landing & Architecture',
+    },
     {
       id: 'nav-overview',
       title: 'Command Center Overview',
