@@ -1,0 +1,17 @@
+{
+  "dataset_version": "lab-v1.0",
+  "generated_at": "2026-11-19T12:00:00Z",
+  "total_records": 1250,
+  "provenance": {
+    "source_environment": "cgx-lab (172.30.0.0/24)",
+    "verified_by_roles": ["Analyst", "Admin", "Owner"],
+    "review_status": "VERIFIED_GOLD"
+  },
+  "scenarios_included": [
+    { "scenario": "TCP_SYN_SCAN", "rule": "NIDS-001", "records": 250 },
+    { "scenario": "UDP_SWEEP", "rule": "NIDS-002", "records": 180 },
+    { "scenario": "PORT_SWEEP_SSH", "rule": "NIDS-003", "records": 120 },
+    { "scenario": "BENIGN_TELEMETRY", "rule": "NONE", "records": 700 }
+  ],
+  "checksum_sha256": "4f9b8c2a1e07b22d8c4a1e07b22e9e0ccd8f860fa12b34cd56e771a2b3c4d5e"
+}

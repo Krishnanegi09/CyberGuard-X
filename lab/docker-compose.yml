@@ -1,0 +1,81 @@
+version: '3.8'
+
+# CYBERGUARD-X Isolated Lab Environment (Option A)
+# References: docs/design/08-lab.md, docs/LAB.md
+
+networks:
+  cgx-lab:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
+    internal: true # Air-gapped isolation: no external internet access from lab network
+
+services:
+  # 1. Lab Sensor Agent (Sniffs lab bridge traffic with BPF)
+  cgx-sensor:
+    image: alpine:latest
+    container_name: cgx-sensor
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      cgx-lab:
+        ipv4_address: 172.30.0.2
+    command: ["sleep", "infinity"]
+    restart: unless-stopped
+
+  # 2. Lab Gateway / Firewall (Simulates border packet filter / nftables executor)
+  cgx-gw:
+    image: alpine:latest
+    container_name: cgx-gw
+    cap_add:
+      - NET_ADMIN
+    networks:
+      cgx-lab:
+        ipv4_address: 172.30.0.10
+    command: ["sleep", "infinity"]
+    restart: unless-stopped
+
+  # 3. Target Web Server (Simulates perimeter HTTP service)
+  target-web:
+    image: nginx:alpine
+    container_name: target-web
+    networks:
+      cgx-lab:
+        ipv4_address: 172.30.0.12
+    restart: unless-stopped
+
+  # 4. Target SSH Server (Simulates internal management host)
+  target-ssh:
+    image: alpine:latest
+    container_name: target-ssh
+    networks:
+      cgx-lab:
+        ipv4_address: 172.30.0.18
+    command: ["sleep", "infinity"]
+    restart: unless-stopped
+
+  # 5. Target SQL Database (Simulates Crown Jewels core database)
+  target-db:
+    image: postgres:16-alpine
+    container_name: target-db
+    environment:
+      POSTGRES_USER: lab_operator
+      POSTGRES_PASSWORD: lab_test_password_only
+      POSTGRES_DB: crown_jewels
+    networks:
+      cgx-lab:
+        ipv4_address: 172.30.0.35
+    restart: unless-stopped
+
+  # 6. Attacker Reconnaissance Node (Restricted strictly to cgx-lab)
+  attacker:
+    image: alpine:latest
+    container_name: attacker
+    networks:
+      cgx-lab:
+        ipv4_address: 172.30.0.105
+    command: ["sleep", "infinity"]
+    restart: unless-stopped
