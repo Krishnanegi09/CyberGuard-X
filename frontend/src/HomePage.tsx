@@ -31,8 +31,6 @@ import {
   FileCode,
   Users,
   AlertOctagon,
-  Server,
-  Database,
 } from 'lucide-react'
 import './HomePage.css'
 
@@ -261,23 +259,38 @@ const LocalEarth3D: React.FC<LocalEarth3DProps> = ({
     const atmosphereMesh = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial)
     earthGroup.add(atmosphereMesh)
 
-    // 8. Restrained, Minimal Orbital Trajectory (1 delicate orbit arc, no visual clutter)
+    // 8. Restrained, Minimal Orbital Trajectories (Delicate orbital arcs with glowing telemetry nodes)
     const orbitGroup = new THREE.Group()
     scene.add(orbitGroup)
 
-    const orbitCurve = new THREE.EllipseCurve(0, 0, 1.95, 1.80, 0, 2 * Math.PI, false, 0)
-    const orbitPoints = orbitCurve.getPoints(100).map((p) => new THREE.Vector3(p.x, p.y, 0))
-    const orbitGeo = new THREE.BufferGeometry().setFromPoints(orbitPoints)
-    const orbitMat = new THREE.LineBasicMaterial({
-      color: 0x00ddf5,
-      transparent: true,
-      opacity: 0.18,
-      blending: THREE.AdditiveBlending,
-    })
-    const orbitLine = new THREE.Line(orbitGeo, orbitMat)
-    orbitLine.rotation.set(1.15, 0.45, 0.25)
-    orbitLine.position.copy(earthGroup.position)
-    orbitGroup.add(orbitLine)
+    const createOrbitLine = (radiusX: number, radiusY: number, rotX: number, rotY: number, rotZ: number, opacity: number) => {
+      const curve = new THREE.EllipseCurve(0, 0, radiusX, radiusY, 0, 2 * Math.PI, false, 0)
+      const points = curve.getPoints(120).map((p) => new THREE.Vector3(p.x, p.y, 0))
+      const geo = new THREE.BufferGeometry().setFromPoints(points)
+      const mat = new THREE.LineBasicMaterial({
+        color: 0x00ddf5,
+        transparent: true,
+        opacity,
+        blending: THREE.AdditiveBlending,
+      })
+      const line = new THREE.Line(geo, mat)
+      line.rotation.set(rotX, rotY, rotZ)
+      line.position.copy(earthGroup.position)
+      return line
+    }
+
+    const orbit1 = createOrbitLine(1.98, 1.82, 1.15, 0.45, 0.25, 0.22)
+    const orbit2 = createOrbitLine(2.15, 1.70, 0.85, -0.65, 0.75, 0.14)
+    orbitGroup.add(orbit1)
+    orbitGroup.add(orbit2)
+
+    // Orbital Satellite Nodes (Glowing cyan telemetry points along orbits)
+    const nodeGeo = new THREE.SphereGeometry(0.024, 16, 16)
+    const nodeMat = new THREE.MeshBasicMaterial({ color: 0x00ddf5, transparent: true, opacity: 0.9 })
+    const nodeMesh1 = new THREE.Mesh(nodeGeo, nodeMat)
+    const nodeMesh2 = new THREE.Mesh(nodeGeo, nodeMat)
+    orbitGroup.add(nodeMesh1)
+    orbitGroup.add(nodeMesh2)
 
     // 9. When textures finish loading
     loadingManager.onLoad = () => {
@@ -304,6 +317,21 @@ const LocalEarth3D: React.FC<LocalEarth3DProps> = ({
 
       earthMesh.rotation.y += ROTATION_SPEED * delta
       cloudsMesh.rotation.y += CLOUD_SPEED * delta
+
+      // Orbital nodes movement
+      const time = clock.getElapsedTime()
+      const t1 = time * 0.18
+      nodeMesh1.position.set(
+        earthGroup.position.x + Math.cos(t1) * 1.98 * 0.85,
+        earthGroup.position.y + Math.sin(t1) * 1.82 * 0.65,
+        Math.sin(t1) * 0.95
+      )
+      const t2 = time * -0.14 + 1.5
+      nodeMesh2.position.set(
+        earthGroup.position.x + Math.cos(t2) * 2.15 * 0.75,
+        earthGroup.position.y + Math.sin(t2) * 1.70 * 0.85,
+        Math.cos(t2) * 0.8
+      )
 
       const target = parallaxRef.current
       currentParallaxX += (target.x * 0.08 - currentParallaxX) * 0.035
@@ -345,8 +373,12 @@ const LocalEarth3D: React.FC<LocalEarth3DProps> = ({
       cloudsMaterial.dispose()
       atmosphereGeometry.dispose()
       atmosphereMaterial.dispose()
-      orbitGeo.dispose()
-      orbitMat.dispose()
+      orbit1.geometry.dispose()
+      ;(orbit1.material as THREE.Material).dispose()
+      orbit2.geometry.dispose()
+      ;(orbit2.material as THREE.Material).dispose()
+      nodeGeo.dispose()
+      nodeMat.dispose()
       earthDayMap.dispose()
       earthLightsMap.dispose()
       earthCloudsMap.dispose()
@@ -371,16 +403,16 @@ const LocalEarth3D: React.FC<LocalEarth3DProps> = ({
       {/* Restrained Telemetry Badge 1: Events / 24h (Explicitly Marked DEMO) */}
       <div
         className={`floating-telemetry-badge badge-top-left ${isReady ? 'visible' : ''}`}
-        style={{ position: 'absolute', top: '10%', left: '5%', zIndex: 10 }}
+        style={{ position: 'absolute', top: '8%', left: '12%', zIndex: 10 }}
       >
         <div className="telemetry-badge-content">
           <div className="telemetry-icon-box cyan">
-            <Shield size={15} />
+            <Shield size={16} />
           </div>
           <div className="telemetry-text-block">
             <div className="telemetry-top-line">
               <span className="telemetry-value">5.2M</span>
-              <span className="telemetry-demo-tag">DEMO</span>
+              <span className="telemetry-demo-pill">DEMO</span>
             </div>
             <span className="telemetry-label">Events / 24h</span>
           </div>
@@ -390,16 +422,16 @@ const LocalEarth3D: React.FC<LocalEarth3DProps> = ({
       {/* Restrained Telemetry Badge 2: Active Threats (Explicitly Marked DEMO) */}
       <div
         className={`floating-telemetry-badge badge-right ${isReady ? 'visible' : ''}`}
-        style={{ position: 'absolute', top: '38%', right: '4%', zIndex: 10 }}
+        style={{ position: 'absolute', top: '42%', right: '6%', zIndex: 10 }}
       >
         <div className="telemetry-badge-content threat">
           <div className="telemetry-icon-box red">
-            <AlertTriangle size={15} />
+            <AlertTriangle size={16} />
           </div>
           <div className="telemetry-text-block">
             <div className="telemetry-top-line">
               <span className="telemetry-value red">12</span>
-              <span className="telemetry-demo-tag red">DEMO</span>
+              <span className="telemetry-demo-pill red">DEMO</span>
             </div>
             <span className="telemetry-label">Active Threats</span>
           </div>
@@ -408,17 +440,17 @@ const LocalEarth3D: React.FC<LocalEarth3DProps> = ({
 
       {/* Restrained Telemetry Badge 3: Assets Monitored (Explicitly Marked DEMO) */}
       <div
-        className={`floating-telemetry-badge badge-bottom-left ${isReady ? 'visible' : ''}`}
-        style={{ position: 'absolute', bottom: '12%', left: '10%', zIndex: 10 }}
+        className={`floating-telemetry-badge badge-bottom-center ${isReady ? 'visible' : ''}`}
+        style={{ position: 'absolute', bottom: '12%', left: '20%', zIndex: 10 }}
       >
         <div className="telemetry-badge-content">
           <div className="telemetry-icon-box teal">
-            <Layers size={15} />
+            <Layers size={16} />
           </div>
           <div className="telemetry-text-block">
             <div className="telemetry-top-line">
               <span className="telemetry-value">1,284</span>
-              <span className="telemetry-demo-tag">DEMO</span>
+              <span className="telemetry-demo-pill">DEMO</span>
             </div>
             <span className="telemetry-label">Assets Monitored</span>
           </div>
@@ -490,51 +522,31 @@ export const HomePage: React.FC<HomePageProps> = ({
     },
   ]
 
-  // Platform Capabilities 4-Card Data
+  // Platform Capabilities 4-Card Data (Faithful to approved visual direction)
   const platformCards = [
     {
       id: 'twin',
       title: 'Cyber Digital Twin',
       icon: <Box size={22} />,
-      desc: 'A live, high-fidelity model of enterprise infrastructure for safe and realistic attack simulation.',
-      points: [
-        'Real network topology and trust-zone boundaries',
-        'Asset connectivity and credential exposure relationships',
-        'Air-gapped safe modeling of enterprise attack surfaces',
-      ],
+      desc: 'A live, high-fidelity model of your network for safe, realistic attack simulation.',
     },
     {
       id: 'simulation',
       title: 'Attack-Path Simulation',
       icon: <GitBranch size={22} />,
-      desc: 'Simulate multi-stage lateral movement and identify critical bottleneck exposure paths.',
-      points: [
-        'Multi-stage lateral attack traversal analysis',
-        'k-shortest attack paths and critical bottleneck identification',
-        'What-if defensive scenarios and blast-radius estimation',
-      ],
+      desc: 'Simulate multi-stage lateral movement and identify critical exposure paths.',
     },
     {
       id: 'ml',
       title: 'AI Threat Intelligence',
       icon: <Cpu size={22} />,
       desc: 'Detect, prioritize, and predict threats using trained ML models and behavioral analytics.',
-      points: [
-        'Supervised network-flow classification models',
-        'Unsupervised statistical flow anomaly detection',
-        'Explainable asset-risk scoring and CVE correlation',
-      ],
     },
     {
       id: 'defense',
       title: 'Automated Response',
       icon: <Zap size={22} />,
-      desc: 'Execute calibrated, policy-aware defensive actions in real time under human governance.',
-      points: [
-        'Four-Eyes human authorization and full audit logging',
-        'Precision firewall shuns and lab container isolation',
-        'Mandatory TTL expiry, automatic rollback, and Emergency Stop',
-      ],
+      desc: 'Execute calibrated, policy-aware defensive actions in real time.',
     },
   ]
 
@@ -1021,39 +1033,30 @@ export const HomePage: React.FC<HomePageProps> = ({
             className="section-explore-link"
             onClick={onLaunchConsole}
           >
-            <span>Explore In Console</span>
+            <span>Explore All Capabilities</span>
             <ArrowRight size={15} />
           </button>
         </div>
 
         <div className="capabilities-cards-grid">
-          {platformCards.map((card) => (
-            <div key={card.id} className="capability-card" tabIndex={0}>
+          {platformCards.map((card, idx) => (
+            <div
+              key={card.id}
+              className={`capability-card ${idx === 0 ? 'card-featured' : ''}`}
+              tabIndex={0}
+              onClick={onLaunchConsole}
+            >
               <div className="card-top-row">
                 <div className="card-icon-wrapper">
                   {card.icon}
                 </div>
-                <button
-                  type="button"
-                  className="card-arrow-btn"
-                  onClick={onLaunchConsole}
-                  aria-label={`Open ${card.title} console`}
-                >
+                <div className="card-arrow-indicator">
                   <ArrowRight size={14} />
-                </button>
+                </div>
               </div>
 
               <h3 className="card-title">{card.title}</h3>
               <p className="card-description">{card.desc}</p>
-
-              <div className="card-highlights-list">
-                {card.points.map((p, i) => (
-                  <div key={i} className="highlight-item">
-                    <CheckCircle2 size={13} className="check-icon" />
-                    <span>{p}</span>
-                  </div>
-                ))}
-              </div>
 
               <div className="card-bottom-accent" />
             </div>
@@ -1061,10 +1064,10 @@ export const HomePage: React.FC<HomePageProps> = ({
         </div>
       </section>
 
-      {/* 4. Product Preview — Digital Twin & Attack Simulation (Labeled Illustrative Demo) */}
-      <section id="twin" className="twin-showcase-section" style={{ marginTop: '64px' }}>
+      {/* 4. Product Preview — Digital Twin & Attack Simulation (Faithful to Approved Storyboard) */}
+      <section id="twin" className="twin-showcase-section" style={{ marginTop: '56px' }}>
         <div className="showcase-container">
-          {/* Top Header Bar with Explicit Demonstration Label */}
+          {/* Top Window Header Bar */}
           <div className="showcase-header-bar">
             <div className="showcase-header-left">
               <div className="window-dots">
@@ -1073,82 +1076,173 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <span className="dot green" />
               </div>
               <div className="showcase-title-badge">
-                <Layers size={14} />
-                <span>CYBER DIGITAL TWIN // SIMULATION WORKFLOW DEMO</span>
+                <Box size={14} />
+                <span>CYBER DIGITAL TWIN // LIVE NETWORK SIMULATION</span>
               </div>
             </div>
 
             <div className="showcase-header-right">
-              <span className="live-simulation-tag" style={{ background: 'rgba(0, 221, 245, 0.1)', borderColor: 'rgba(0, 221, 245, 0.3)', color: '#00ddf5' }}>
-                <span className="tag-ping" style={{ background: '#00ddf5' }} />
+              <span className="live-simulation-tag">
+                <span className="tag-ping" />
                 ILLUSTRATIVE DEMO PREVIEW
               </span>
             </div>
           </div>
 
           <div className="showcase-split-grid">
-            {/* Left Panel: Topology Demo */}
+            {/* Left Panel: 3D Isometric Live Digital Twin */}
             <div className="showcase-left-panel">
               <div className="panel-badge-row">
                 <span className="panel-badge">
-                  <Radio size={13} className="text-cyan" />
-                  <span>Network Topology Model</span>
+                  <Box size={15} className="text-cyan" />
+                  <span>Live Digital Twin</span>
                 </span>
-                <span className="status-indicator-green" style={{ color: '#00ddf5' }}>
-                  <span className="dot-pulse" style={{ background: '#00ddf5' }} />
-                  Demonstration Preview
+                <span className="status-indicator-green">
+                  <span className="dot-pulse" />
+                  Active Simulation
                 </span>
               </div>
 
+              {/* High-Fidelity 3D Isometric Server Architecture Canvas */}
               <div className="isometric-topology-canvas">
-                <svg className="topology-svg-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <svg className="topology-svg-layer" viewBox="0 0 540 360" preserveAspectRatio="xMidYMid meet">
                   <defs>
-                    <linearGradient id="cyanTraceDemo" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#00ddf5" stopOpacity="0.8" />
-                      <stop offset="100%" stopColor="#00c89a" stopOpacity="0.4" />
+                    <radialGradient id="cyanFloorGlow" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#00ddf5" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#00ddf5" stopOpacity="0" />
+                    </radialGradient>
+                    <radialGradient id="redFloorGlow" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#ff4d5d" stopOpacity="0.45" />
+                      <stop offset="100%" stopColor="#ff4d5d" stopOpacity="0" />
+                    </radialGradient>
+                    <linearGradient id="traceNormal" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#00ddf5" stopOpacity="0.7" />
+                      <stop offset="100%" stopColor="#00c89a" stopOpacity="0.5" />
                     </linearGradient>
-                    <linearGradient id="alertTraceDemo" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <linearGradient id="traceAttack" x1="0%" y1="0%" x2="100%" y2="100%">
                       <stop offset="0%" stopColor="#ff4d5d" stopOpacity="0.9" />
-                      <stop offset="100%" stopColor="#00ddf5" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#00ddf5" stopOpacity="0.4" />
                     </linearGradient>
                   </defs>
 
-                  <line x1="10" y1="20" x2="90" y2="20" stroke="rgba(36,51,65,0.4)" strokeWidth="0.4" strokeDasharray="1 2" />
-                  <line x1="10" y1="50" x2="90" y2="50" stroke="rgba(36,51,65,0.4)" strokeWidth="0.4" strokeDasharray="1 2" />
-                  <line x1="10" y1="80" x2="90" y2="80" stroke="rgba(36,51,65,0.4)" strokeWidth="0.4" strokeDasharray="1 2" />
+                  {/* Isometric Floor Grid Lines */}
+                  <g className="iso-grid-lines" stroke="rgba(36, 51, 65, 0.4)" strokeWidth="0.8">
+                    <line x1="40" y1="180" x2="310" y2="335" />
+                    <line x1="100" y1="145" x2="370" y2="300" />
+                    <line x1="160" y1="110" x2="430" y2="265" />
+                    <line x1="220" y1="75" x2="490" y2="230" />
 
-                  {/* Solid Observed vs Dashed Simulated Traces */}
-                  <path d="M 18 65 L 38 75" stroke="url(#cyanTraceDemo)" strokeWidth="1" />
-                  <path d="M 38 75 L 58 40" stroke="url(#alertTraceDemo)" strokeWidth="1.4" strokeDasharray="2 1" />
-                  <path d="M 58 40 L 78 30" stroke="url(#cyanTraceDemo)" strokeWidth="1.2" />
-                  <path d="M 58 40 L 44 20" stroke="url(#cyanTraceDemo)" strokeWidth="0.8" />
+                    <line x1="490" y1="180" x2="220" y2="335" />
+                    <line x1="430" y1="145" x2="160" y2="300" />
+                    <line x1="370" y1="110" x2="100" y2="265" />
+                    <line x1="310" y1="75" x2="40" y2="230" />
+                  </g>
+
+                  {/* Connecting Data Highway Traces */}
+                  {/* DMZ to Compromised Worker */}
+                  <path d="M 105 195 L 160 225 L 160 255" fill="none" stroke="url(#traceNormal)" strokeWidth="1.6" />
+                  {/* Compromised Worker to Core Cluster (Active Lateral Attack Vector) */}
+                  <path d="M 160 255 L 215 285 L 270 255 L 270 215" fill="none" stroke="url(#traceAttack)" strokeWidth="2.2" strokeDasharray="4 2" />
+                  {/* Core Cluster to Identity DC */}
+                  <path d="M 270 215 L 220 185 L 220 120" fill="none" stroke="url(#traceNormal)" strokeWidth="1.5" />
+                  {/* Core Cluster to Restricted DB */}
+                  <path d="M 270 215 L 340 175 L 410 215 L 410 165" fill="none" stroke="url(#traceNormal)" strokeWidth="1.8" />
+                  {/* Core Cluster to Worker 03 */}
+                  <path d="M 270 215 L 340 255 L 380 235" fill="none" stroke="url(#traceNormal)" strokeWidth="1.4" />
+
+                  {/* Floor Glows */}
+                  <ellipse cx="270" cy="235" rx="65" ry="26" fill="url(#cyanFloorGlow)" />
+                  <ellipse cx="160" cy="285" rx="55" ry="22" fill="url(#redFloorGlow)" />
+                  <ellipse cx="410" cy="180" rx="45" ry="18" fill="url(#cyanFloorGlow)" />
+
+                  {/* NODE 1: DMZ-Web-01 (Isometric Server Cube, Left) */}
+                  <g className="iso-server dmz" onClick={() => setSelectedDemoNode('node-dmz')} style={{ cursor: 'pointer' }}>
+                    {/* Left Face */}
+                    <polygon points="80,185 105,198 105,232 80,219" fill="#0d1824" stroke="rgba(0, 221, 245, 0.4)" strokeWidth="0.8" />
+                    {/* Right Face */}
+                    <polygon points="105,198 130,185 130,219 105,232" fill="#09121c" stroke="rgba(0, 221, 245, 0.4)" strokeWidth="0.8" />
+                    {/* Top Face */}
+                    <polygon points="105,172 130,185 105,198 80,185" fill="#13263a" stroke="#00ddf5" strokeWidth="1" />
+                    {/* Cyan Server Bay Slots */}
+                    <line x1="85" y1="200" x2="100" y2="208" stroke="#00ddf5" strokeWidth="1.2" />
+                    <line x1="85" y1="208" x2="100" y2="216" stroke="#00ddf5" strokeWidth="1.2" />
+                    <line x1="85" y1="216" x2="100" y2="224" stroke="#00ddf5" strokeWidth="1.2" />
+                  </g>
+
+                  {/* NODE 2: Internal-Worker-02 (COMPROMISED RED ISOMETRIC SERVER, Bottom Left) */}
+                  <g className="iso-server compromised" onClick={() => setSelectedDemoNode('node-comp')} style={{ cursor: 'pointer' }}>
+                    {/* Left Face */}
+                    <polygon points="130,240 160,256 160,296 130,280" fill="#240c12" stroke="rgba(255, 77, 93, 0.6)" strokeWidth="1" />
+                    {/* Right Face */}
+                    <polygon points="160,256 190,240 190,280 160,296" fill="#17070a" stroke="rgba(255, 77, 93, 0.6)" strokeWidth="1" />
+                    {/* Top Face */}
+                    <polygon points="160,224 190,240 160,256 130,240" fill="#3a111a" stroke="#ff4d5d" strokeWidth="1.4" />
+                    {/* Glowing Red Server Bay Slots */}
+                    <line x1="136" y1="256" x2="154" y2="266" stroke="#ff4d5d" strokeWidth="1.5" />
+                    <line x1="136" y1="266" x2="154" y2="276" stroke="#ff4d5d" strokeWidth="1.5" />
+                    <line x1="136" y1="276" x2="154" y2="286" stroke="#ff4d5d" strokeWidth="1.5" />
+                    {/* Floating Red Warning Triangle Indicator */}
+                    <g transform="translate(198, 252)">
+                      <circle cx="10" cy="10" r="12" fill="rgba(255, 77, 93, 0.2)" stroke="#ff4d5d" strokeWidth="1.2" />
+                      <polygon points="10,4 16,14 4,14" fill="#ff4d5d" />
+                      <rect x="9.2" y="8" width="1.6" height="3" fill="#070b10" />
+                      <circle cx="10" cy="12.5" r="0.9" fill="#070b10" />
+                    </g>
+                  </g>
+
+                  {/* NODE 3: Core-App-Cluster (TALL CENTRAL ISOMETRIC TOWER) */}
+                  <g className="iso-server core" onClick={() => setSelectedDemoNode('node-core')} style={{ cursor: 'pointer' }}>
+                    {/* Left Face */}
+                    <polygon points="230,140 270,162 270,236 230,214" fill="#0d1b2a" stroke="rgba(0, 221, 245, 0.6)" strokeWidth="1.2" />
+                    {/* Right Face */}
+                    <polygon points="270,162 310,140 310,214 270,236" fill="#08111c" stroke="rgba(0, 221, 245, 0.6)" strokeWidth="1.2" />
+                    {/* Top Face */}
+                    <polygon points="270,118 310,140 270,162 230,140" fill="#14324c" stroke="#00ddf5" strokeWidth="1.6" />
+                    {/* Glowing Cyan Horizontal Slats */}
+                    <line x1="238" y1="160" x2="262" y2="173" stroke="#00ddf5" strokeWidth="1.8" />
+                    <line x1="238" y1="172" x2="262" y2="185" stroke="#00ddf5" strokeWidth="1.8" />
+                    <line x1="238" y1="184" x2="262" y2="197" stroke="#00ddf5" strokeWidth="1.8" />
+                    <line x1="238" y1="196" x2="262" y2="209" stroke="#00ddf5" strokeWidth="1.8" />
+                    <line x1="238" y1="208" x2="262" y2="221" stroke="#00ddf5" strokeWidth="1.8" />
+
+                    <line x1="278" y1="173" x2="302" y2="160" stroke="#00ddf5" strokeWidth="1.8" />
+                    <line x1="278" y1="185" x2="302" y2="172" stroke="#00ddf5" strokeWidth="1.8" />
+                    <line x1="278" y1="197" x2="302" y2="184" stroke="#00ddf5" strokeWidth="1.8" />
+                    <line x1="278" y1="209" x2="302" y2="196" stroke="#00ddf5" strokeWidth="1.8" />
+                    <line x1="278" y1="221" x2="302" y2="208" stroke="#00ddf5" strokeWidth="1.8" />
+                  </g>
+
+                  {/* NODE 4: Prod-Database-01 (ISOMETRIC CYLINDER / DB STACK, Right) */}
+                  <g className="iso-server db" onClick={() => setSelectedDemoNode('node-db')} style={{ cursor: 'pointer' }}>
+                    {/* Cylinder Body */}
+                    <path d="M 385 135 L 385 175 A 25 12 0 0 0 435 175 L 435 135 Z" fill="#0c1a27" stroke="rgba(0, 200, 154, 0.6)" strokeWidth="1" />
+                    {/* Intermediate Disk Grooves */}
+                    <path d="M 385 148 A 25 12 0 0 0 435 148" fill="none" stroke="#00c89a" strokeWidth="1.4" />
+                    <path d="M 385 162 A 25 12 0 0 0 435 162" fill="none" stroke="#00c89a" strokeWidth="1.4" />
+                    {/* Top Disk Face */}
+                    <ellipse cx="410" cy="135" rx="25" ry="12" fill="#153638" stroke="#00c89a" strokeWidth="1.5" />
+                  </g>
+
+                  {/* NODE 5: Identity-DC-01 (Background Server) */}
+                  <g className="iso-server dc" onClick={() => setSelectedDemoNode('node-dc')} style={{ cursor: 'pointer' }}>
+                    <polygon points="200,95 220,105 220,135 200,125" fill="#0d1824" stroke="rgba(0, 221, 245, 0.4)" strokeWidth="0.8" />
+                    <polygon points="220,105 240,95 240,125 220,135" fill="#09121c" stroke="rgba(0, 221, 245, 0.4)" strokeWidth="0.8" />
+                    <polygon points="220,85 240,95 220,105 200,95" fill="#13263a" stroke="#00ddf5" strokeWidth="1" />
+                    <line x1="205" y1="108" x2="216" y2="114" stroke="#00ddf5" strokeWidth="1.2" />
+                    <line x1="205" y1="116" x2="216" y2="122" stroke="#00ddf5" strokeWidth="1.2" />
+                  </g>
+
+                  {/* NODE 6: Worker-03 (Foreground Satellite Node) */}
+                  <g className="iso-server worker" style={{ cursor: 'pointer' }}>
+                    <polygon points="360,230 380,240 380,268 360,258" fill="#0d1824" stroke="rgba(0, 221, 245, 0.4)" strokeWidth="0.8" />
+                    <polygon points="380,240 400,230 400,258 380,268" fill="#09121c" stroke="rgba(0, 221, 245, 0.4)" strokeWidth="0.8" />
+                    <polygon points="380,220 400,230 380,240 360,230" fill="#13263a" stroke="#00ddf5" strokeWidth="1" />
+                    <line x1="365" y1="242" x2="376" y2="248" stroke="#00ddf5" strokeWidth="1.2" />
+                    <line x1="365" y1="250" x2="376" y2="256" stroke="#00ddf5" strokeWidth="1.2" />
+                  </g>
                 </svg>
 
-                {demoNodes.map((node) => {
-                  const isSelected = selectedDemoNode === node.id
-                  const isCompromised = node.status === 'compromised'
-                  const isCrown = node.status === 'crown'
-
-                  return (
-                    <div
-                      key={node.id}
-                      className={`topology-node-card ${node.status} ${isSelected ? 'selected' : ''}`}
-                      style={{ left: `${node.x}%`, top: `${node.y}%` }}
-                      onClick={() => setSelectedDemoNode(node.id)}
-                    >
-                      <div className="node-icon-box">
-                        {isCrown ? <Database size={17} /> : isCompromised ? <AlertTriangle size={17} /> : <Server size={17} />}
-                        {isCompromised && <span className="compromised-pulse-ring" />}
-                      </div>
-
-                      <div className="node-info-tooltip">
-                        <span className="tooltip-name">{node.name}</span>
-                        <span className="tooltip-ip">{node.ip}</span>
-                      </div>
-                    </div>
-                  )
-                })}
-
+                {/* Node Detail Bottom Bar */}
                 <div className="topology-node-detail-bar">
                   {(() => {
                     const current = demoNodes.find((n) => n.id === selectedDemoNode) || demoNodes[1]
@@ -1170,7 +1264,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 </div>
               </div>
 
-              {/* Safe Action Buttons (No accidental execution of real defensive actions from public page) */}
+              {/* Action Controls */}
               <div className="topology-action-bar">
                 <button
                   type="button"
@@ -1203,97 +1297,104 @@ export const HomePage: React.FC<HomePageProps> = ({
               </div>
             </div>
 
-            {/* Right Panel: Attack Simulation Workflow */}
+            {/* Right Panel: Attack Simulation (Live) with Side-by-Side Stages & Insights */}
             <div className="showcase-right-panel">
               <div className="panel-badge-row">
                 <span className="panel-badge">
-                  <GitBranch size={14} className="text-cyan" />
-                  <span>Attack Simulation Lifecycle</span>
+                  <Activity size={15} className="text-cyan" />
+                  <span>Attack Simulation (Live)</span>
                 </span>
-                <span className="telemetry-demo-tag" style={{ marginLeft: 'auto' }}>DEMO WORKFLOW</span>
+                <span className="telemetry-demo-pill" style={{ marginLeft: 'auto' }}>DEMO WORKFLOW</span>
               </div>
 
-              <div className="simulation-lifecycle-list">
-                {demoStages.map((stage, idx) => {
-                  const isCompleted = idx < demoSimStep
-                  const isInProgress = idx === demoSimStep
-                  const isPending = idx > demoSimStep
+              {/* Side-by-Side Content Grid: Stages List & Simulation Insights */}
+              <div className="simulation-two-col-layout">
+                {/* Column 1: Lifecycle Stages */}
+                <div className="simulation-lifecycle-list">
+                  {demoStages.map((stage, idx) => {
+                    const isCompleted = idx < demoSimStep
+                    const isInProgress = idx === demoSimStep
+                    const isPending = idx > demoSimStep
 
-                  return (
-                    <div
-                      key={stage.name}
-                      className={`lifecycle-stage-row ${
-                        isCompleted ? 'completed' : isInProgress ? 'in-progress' : 'pending'
-                      }`}
-                    >
-                      <div className="stage-marker">
-                        {isCompleted ? (
-                          <CheckCircle2 size={15} className="marker-icon completed" />
-                        ) : isInProgress ? (
-                          <span className="marker-dot active-pulse" />
-                        ) : (
-                          <span className="marker-dot pending" />
-                        )}
+                    return (
+                      <div
+                        key={stage.name}
+                        className={`lifecycle-stage-row ${
+                          isCompleted ? 'completed' : isInProgress ? 'in-progress' : 'pending'
+                        }`}
+                      >
+                        <div className="stage-marker">
+                          {isCompleted ? (
+                            <CheckCircle2 size={15} className="marker-icon completed" />
+                          ) : isInProgress ? (
+                            <span className="marker-dot active-pulse" />
+                          ) : (
+                            <span className="marker-dot pending" />
+                          )}
+                        </div>
+
+                        <div className="stage-name-col">
+                          <span className="stage-name">{stage.name}</span>
+                        </div>
+
+                        <div className="stage-status-col">
+                          {isCompleted && <span className="stage-tag completed">Completed · {stage.duration}</span>}
+                          {isInProgress && <span className="stage-tag in-progress">In Progress · {stage.duration}</span>}
+                          {isPending && <span className="stage-tag pending">Pending</span>}
+                        </div>
                       </div>
-
-                      <div className="stage-name-col">
-                        <span className="stage-name">{stage.name}</span>
-                      </div>
-
-                      <div className="stage-status-col">
-                        {isCompleted && <span className="stage-tag completed">Completed · {stage.duration}</span>}
-                        {isInProgress && <span className="stage-tag in-progress">In Progress · {stage.duration}</span>}
-                        {isPending && <span className="stage-tag pending">Pending</span>}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              <div className="simulation-insights-card">
-                <div className="insights-card-title">
-                  <Clock size={13} />
-                  <span>Simulation Insights (Demonstration Model)</span>
+                    )
+                  })}
                 </div>
 
-                <div className="insights-metrics-grid">
-                  <div className="insight-metric-item full-width">
-                    <div className="metric-header-row">
-                      <span className="metric-label">Estimated Blast Radius</span>
-                      <span className="metric-value-num" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {demoSimStep >= 4 ? 85 : demoSimStep >= 2 ? 32 : 12}%
+                {/* Column 2: Simulation Insights Card */}
+                <div className="simulation-insights-card">
+                  <div className="insights-card-title">
+                    <Clock size={13} />
+                    <span>Simulation Insights</span>
+                  </div>
+
+                  <div className="insights-metrics-grid">
+                    <div className="insight-metric-item full-width">
+                      <div className="metric-header-row">
+                        <span className="metric-label">Blast Radius</span>
+                        <span className="metric-value-num" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {demoSimStep >= 4 ? 85 : demoSimStep >= 2 ? 32 : 12}%
+                        </span>
+                      </div>
+                      <div className="blast-progress-track">
+                        <div
+                          className="blast-progress-fill"
+                          style={{ width: `${demoSimStep >= 4 ? 85 : demoSimStep >= 2 ? 32 : 12}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="insight-metric-item">
+                      <span className="metric-label">Affected Assets</span>
+                      <span className="metric-value-num large" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {demoSimStep >= 4 ? 38 : demoSimStep >= 2 ? 14 : 4}
                       </span>
                     </div>
-                    <div className="blast-progress-track">
-                      <div
-                        className="blast-progress-fill"
-                        style={{ width: `${demoSimStep >= 4 ? 85 : demoSimStep >= 2 ? 32 : 12}%` }}
-                      />
+
+                    <div className="insight-metric-item">
+                      <span className="metric-label">Risk Score</span>
+                      <span className={`risk-badge-pill ${demoSimStep >= 4 ? 'critical' : 'high'}`}>
+                        {demoSimStep >= 4 ? 'Critical' : 'High'}
+                      </span>
                     </div>
-                  </div>
 
-                  <div className="insight-metric-item">
-                    <span className="metric-label">Affected Assets</span>
-                    <span className="metric-value-num large" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {demoSimStep >= 4 ? 38 : demoSimStep >= 2 ? 14 : 4}
-                    </span>
-                  </div>
-
-                  <div className="insight-metric-item">
-                    <span className="metric-label">Risk Category</span>
-                    <span className={`risk-badge-pill ${demoSimStep >= 4 ? 'critical' : 'high'}`}>
-                      {demoSimStep >= 4 ? 'Critical' : 'High'}
-                    </span>
-                  </div>
-
-                  <div className="insight-metric-item">
-                    <span className="metric-label">Estimated Traversal</span>
-                    <span className="metric-value-num mono">~ 18 min</span>
+                    <div className="insight-metric-item full-width">
+                      <div className="metric-header-row">
+                        <span className="metric-label">Est. Impact</span>
+                        <span className="metric-value-num mono">~ 18 min</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="showcase-footer-link">
+              <div className="showcase-footer-link" style={{ marginTop: 'auto', paddingTop: '12px' }}>
                 <button
                   type="button"
                   className="btn-deep-dive"
@@ -1308,18 +1409,52 @@ export const HomePage: React.FC<HomePageProps> = ({
         </div>
       </section>
 
-      {/* 5. Six-Stage Defense Intelligence Loop (All 6 Stages Connected & Interactive) */}
+      {/* 5. Six-Stage Defense Intelligence Loop (Faithful to Approved Storyboard) */}
       <section id="loop" className="defense-loop-section" style={{ marginTop: '72px' }}>
-        <div className="loop-header-group">
-          <span className="eyebrow-badge">BUILT FOR MODERN SECURITY TEAMS</span>
-          <h2 className="loop-main-heading">From Visibility to Autonomous Defense</h2>
-          <p className="loop-sub-heading">
-            A continuous six-stage intelligence loop connecting raw wire packet observations to calibrated defense.
-          </p>
+        {/* Asymmetric Hero Row from Visual Reference */}
+        <div className="defense-loop-hero-row">
+          <div className="defense-loop-left-heading">
+            <span className="eyebrow-badge">BUILT FOR MODERN SECURITY TEAMS</span>
+            <h2 className="loop-main-heading">From Visibility to Autonomous Defense</h2>
+            <p className="loop-sub-heading">
+              Unify telemetry, simulation, intelligence, and response in a single operational platform.
+            </p>
+          </div>
+
+          <div className="defense-loop-divider" />
+
+          <div className="defense-loop-right-steps">
+            <div className="defense-flow-step" onClick={() => setActiveLoopStage(0)} role="button" tabIndex={0}>
+              <div className="flow-step-icon"><Eye size={22} /></div>
+              <div className="flow-step-title">Observe</div>
+              <div className="flow-step-desc">Real-time network telemetry</div>
+            </div>
+            <div className="flow-step-arrow"><ArrowRight size={16} /></div>
+
+            <div className="defense-flow-step" onClick={() => setActiveLoopStage(2)} role="button" tabIndex={0}>
+              <div className="flow-step-icon"><Layers size={22} /></div>
+              <div className="flow-step-title">Simulate</div>
+              <div className="flow-step-desc">Safe, realistic attack paths</div>
+            </div>
+            <div className="flow-step-arrow"><ArrowRight size={16} /></div>
+
+            <div className="defense-flow-step" onClick={() => setActiveLoopStage(3)} role="button" tabIndex={0}>
+              <div className="flow-step-icon"><BarChart3 size={22} /></div>
+              <div className="flow-step-title">Predict</div>
+              <div className="flow-step-desc">ML-driven risk estimation</div>
+            </div>
+            <div className="flow-step-arrow"><ArrowRight size={16} /></div>
+
+            <div className="defense-flow-step" onClick={() => setActiveLoopStage(4)} role="button" tabIndex={0}>
+              <div className="flow-step-icon"><Shield size={22} /></div>
+              <div className="flow-step-title">Respond</div>
+              <div className="flow-step-desc">Automated, controlled defense actions</div>
+            </div>
+          </div>
         </div>
 
         {/* Connected Process Flow Bar — All 6 Stages Represented */}
-        <div className="horizontal-process-strip">
+        <div className="horizontal-process-strip" style={{ marginTop: '36px' }}>
           <div className="process-strip-inner" style={{ minWidth: '940px' }}>
             {loopStages.map((stage, idx) => (
               <React.Fragment key={stage.id}>
