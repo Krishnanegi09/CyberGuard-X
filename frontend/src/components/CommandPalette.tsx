@@ -8,20 +8,25 @@ import {
   Shield,
   ArrowRight,
   X,
+  Building,
   type LucideIcon,
 } from 'lucide-react'
 import type { NavItemKey } from './Sidebar'
+import type { Organization } from '../services/backendAuth'
 
 interface CommandPaletteProps {
   isOpen: boolean
   onClose: () => void
   onNavigate: (tab: NavItemKey) => void
+  organizations?: Organization[]
+  selectedOrgId?: string
+  onSelectOrg?: (org: Organization) => void
 }
 
 interface PaletteItem {
   id: string
   title: string
-  category: 'Navigation' | 'Assets' | 'Findings' | 'Actions'
+  category: 'Navigation' | 'Assets' | 'Findings' | 'Actions' | 'Workspaces'
   icon: LucideIcon
   action: () => void
   meta?: string
@@ -31,6 +36,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   isOpen,
   onClose,
   onNavigate,
+  organizations = [],
+  selectedOrgId,
+  onSelectOrg,
 }) => {
   const [query, setQuery] = useState('')
 
@@ -142,6 +150,17 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       meta: 'Remote Code Execution match',
     },
+    ...organizations.map((org) => ({
+      id: `org-${org.id}`,
+      title: `Switch Workspace: ${org.name}`,
+      category: 'Workspaces' as const,
+      icon: Building,
+      action: () => {
+        onSelectOrg?.(org)
+        onClose()
+      },
+      meta: org.id === selectedOrgId ? 'Active Workspace' : `ID: ${org.slug}`,
+    })),
   ]
 
   const filtered = items.filter(

@@ -70,11 +70,19 @@ export default function NetworkDiscovery({
   const activeScopes = scopes.filter((scope) => scope.status === 'active')
 
   const loadScopes = useCallback(async () => {
+    if (!organizationId) {
+      setLoadingScopes(false)
+      return
+    }
     setLoadingScopes(true)
     setScopeError(null)
 
     try {
       const token = await getIdToken()
+      if (!token) {
+        setLoadingScopes(false)
+        return
+      }
       const result = await getNetworkScopes(organizationId, token)
       setScopes(result)
 
@@ -110,11 +118,15 @@ export default function NetworkDiscovery({
 
   const loadScans = useCallback(
     async (scopeId: string) => {
-      if (!scopeId) return
+      if (!scopeId || !organizationId) return
       setLoadingScans(true)
 
       try {
         const token = await getIdToken()
+        if (!token) {
+          setLoadingScans(false)
+          return
+        }
         const result = await getDiscoveryScans(organizationId, scopeId, token)
         setScans(result.items)
         setTotalScans(result.total)
@@ -162,6 +174,10 @@ export default function NetworkDiscovery({
 
   const handleCreateScope = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!organizationId) {
+      setScopeError('No active organization workspace selected. Please select an organization first.')
+      return
+    }
     const name = scopeName.trim()
     const cidrRanges = scopeCidrs
       .split(/[\n,]+/)
@@ -222,6 +238,10 @@ export default function NetworkDiscovery({
 
   const handleStartScan = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!organizationId) {
+      setScanError('No active organization workspace selected. Please select an organization first.')
+      return
+    }
 
     if (!selectedScope || selectedScope.status !== 'active') {
       setScanError('Select an active network scope first.')
@@ -315,6 +335,13 @@ export default function NetworkDiscovery({
         <div className="callout-success" role="status">
           <Check size={16} />
           <span>{successMessage}</span>
+        </div>
+      )}
+
+      {!organizationId && (
+        <div className="callout-error" style={{ marginBottom: '16px' }} role="alert">
+          <AlertTriangle size={16} />
+          <span>No organization workspace is currently selected. Select an active workspace from the sidebar to manage network scopes.</span>
         </div>
       )}
 

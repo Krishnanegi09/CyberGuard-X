@@ -18,6 +18,7 @@ import { EvidenceDrawer, type FindingDetail } from './components/EvidenceDrawer'
 import { CommandPalette } from './components/CommandPalette'
 import { RunDetectionModal } from './components/RunDetectionModal'
 import { EmergencyStopModal } from './components/EmergencyStopModal'
+import AuthScreen from './AuthScreen'
 import { useAuth } from './context/useAuth'
 import {
   getOrganizations,
@@ -29,6 +30,7 @@ export default function App() {
   const {
     firebaseUser,
     backendUser,
+    loading,
     signOutUser,
   } = useAuth()
 
@@ -73,6 +75,7 @@ export default function App() {
 
   // Organizations State
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
+  const [orgs, setOrgs] = useState<Organization[]>([])
 
   // Update Theme attribute on HTML element
   useEffect(() => {
@@ -89,24 +92,35 @@ export default function App() {
     return firebaseUser.getIdToken()
   }, [firebaseUser])
 
-  // Fetch Orgs if authenticated
+  // Fetch Orgs if authenticated and synchronize selection with localStorage
   useEffect(() => {
     if (!firebaseUser) return
     let active = true
     firebaseUser
       .getIdToken()
       .then((token) => getOrganizations(token))
-      .then((orgs) => {
+      .then((data) => {
         if (!active) return
-        if (orgs.length > 0) {
-          setSelectedOrg(orgs[0])
+        setOrgs(data)
+        if (data.length > 0) {
+          const savedOrgId = localStorage.getItem('cgx_selected_org_id')
+          const found = data.find((o) => o.id === savedOrgId)
+          setSelectedOrg(found || data[0])
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('Failed to load organizations', err)
+      })
     return () => {
       active = false
     }
   }, [firebaseUser])
+
+  useEffect(() => {
+    if (selectedOrg?.id) {
+      localStorage.setItem('cgx_selected_org_id', selectedOrg.id)
+    }
+  }, [selectedOrg])
 
   // Listen for ⌘ K
   useEffect(() => {
@@ -135,6 +149,33 @@ export default function App() {
   const userInitials = userEmail.slice(0, 2).toUpperCase()
   const orgName = selectedOrg?.name || 'Acme Corp'
   const orgEnv = 'Production • SOC'
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          background: 'var(--bg-canvas, #090d16)',
+          color: 'var(--text-primary, #f0f6fc)',
+          fontFamily: 'var(--font-sans, sans-serif)',
+          gap: '16px',
+        }}
+      >
+        <div className="status-dot-pulse" style={{ width: '16px', height: '16px' }} />
+        <span style={{ fontSize: '13px', letterSpacing: '0.08em', color: 'var(--accent-cyan, #00f0ff)' }}>
+          INITIALIZING CYBERGUARD-X OPERATOR SESSION...
+        </span>
+      </div>
+    )
+  }
+
+  if (!firebaseUser) {
+    return <AuthScreen />
+  }
 
   return (
     <div className={`cg-app-layout ${theme}-mode`}>
@@ -260,6 +301,9 @@ export default function App() {
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
         onNavigate={(tab) => setActiveNav(tab)}
+        organizations={orgs}
+        selectedOrgId={selectedOrg?.id}
+        onSelectOrg={(org) => setSelectedOrg(org)}
       />
 
       <RunDetectionModal
