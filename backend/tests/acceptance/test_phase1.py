@@ -103,8 +103,17 @@ def auth_headers_for(monkeypatch, uid, email):
 # 1. test_invalid_token
 # ---------------------------------------------------------------------------
 @pytest.mark.phase1
-def test_invalid_token(acceptance_context):
+def test_invalid_token(acceptance_context, monkeypatch):
     client, _ = acceptance_context
+    from firebase_admin import auth
+
+    def raise_invalid(token):
+        raise auth.InvalidIdTokenError("Invalid token")
+
+    monkeypatch.setattr(
+        "backend.app.api.deps.verify_firebase_id_token",
+        raise_invalid,
+    )
     response = client.get(
         "/api/v1/organizations",
         headers={"Authorization": "Bearer invalid-garbage-token"},
