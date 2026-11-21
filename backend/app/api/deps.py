@@ -2,10 +2,10 @@
 import uuid
 from collections.abc import Generator
 
-from firebase_admin import auth
-from firebase_admin.exceptions import FirebaseError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from firebase_admin import auth
+from firebase_admin.exceptions import FirebaseError
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
@@ -19,7 +19,6 @@ from backend.app.db.models.access_control import (
 from backend.app.db.models.organizations import Organization
 from backend.app.db.models.users import User
 from backend.app.db.session import SessionLocal
-
 
 bearer_scheme = HTTPBearer(auto_error=False)
 

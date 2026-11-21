@@ -1,4 +1,5 @@
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -19,7 +20,6 @@ from backend.app.schemas.organizations import (
     OrganizationCreate,
     OrganizationPublic,
 )
-
 
 router = APIRouter(
     prefix="/organizations",

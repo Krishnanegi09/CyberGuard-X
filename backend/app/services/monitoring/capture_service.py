@@ -12,13 +12,13 @@ from scapy.all import AsyncSniffer
 from scapy.packet import Packet
 
 from backend.app.services.monitoring.flow_tracker import FlowTracker
-from backend.app.services.monitoring.packet_parser import (
-    PacketObservation,
-    parse_packet,
-)
 from backend.app.services.monitoring.nids_engine import (
     NIDSAlert,
     NIDSEngine,
+)
+from backend.app.services.monitoring.packet_parser import (
+    PacketObservation,
+    parse_packet,
 )
 
 

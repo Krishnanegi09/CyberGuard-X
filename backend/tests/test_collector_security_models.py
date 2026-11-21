@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import insert
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 

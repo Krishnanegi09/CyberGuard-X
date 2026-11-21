@@ -2,10 +2,11 @@ import json
 from pathlib import Path
 from threading import Lock
 from typing import Any
+
 import joblib
 import numpy as np
 
-from backend.app.schemas.ml import FlowFeaturesInput, PredictionResponse, ModelMetadataResponse
+from backend.app.schemas.ml import FlowFeaturesInput, ModelMetadataResponse, PredictionResponse
 
 ARTIFACTS_DIR = Path(__file__).resolve().parents[4] / "ml" / "artifacts"
 MODEL_PATH = ARTIFACTS_DIR / "rf_nids_classifier_v1.joblib"

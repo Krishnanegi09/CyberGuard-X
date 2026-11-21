@@ -104,7 +104,7 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ organizationId, getIdTok
                 cves: [],
                 openFindingsCount: services.filter((s) => s.security.includes('Insecure')).length,
                 lastSeen: a.last_seen ? new Date(a.last_seen).toLocaleTimeString() : 'Recent',
-                gateway: '10.0.0.1 (Discovered Gateway)',
+                gateway: 'Discovered Local Gateway',
               }
             })
             setAssets(mapped)

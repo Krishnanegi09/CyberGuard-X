@@ -29,7 +29,6 @@ from backend.app.services.discovery.target_validation import (
     validate_target,
 )
 
-
 router = APIRouter(
     prefix="/organizations/{organization_id}/network-scopes/{scope_id}/scans",
     tags=["Network Discovery"],

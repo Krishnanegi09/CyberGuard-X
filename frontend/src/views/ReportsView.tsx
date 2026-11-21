@@ -26,24 +26,24 @@ const REPORTS_LIST: ReportDoc[] = [
     generatedAt: '2026-11-19 14:20:00 UTC',
     author: 'CYBERGUARD-X Nmap Engine v7.95',
     format: 'Markdown / HTML',
-    summary: 'Active host reconnaissance across boundary 10.0.0.0/24 identifying 3 live assets, 6 open service ports, and exposed vsftpd 2.3.4.',
+    summary: 'Active host reconnaissance across boundary 198.51.100.0/24 identifying 3 live assets, 6 open service ports, and exposed vsftpd 2.3.4.', // cgx-allow: sample report template
     content: `# CYBERGUARD-X — Automated Discovery Scan Report
 
 **Organization ID:** \`org-democorp-01\`  
 **Execution Timestamp:** 2026-11-19T14:20:00Z  
-**Scan Scope:** \`10.0.0.0/24\` (Lab DMZ Boundary)  
+**Scan Scope:** \`198.51.100.0/24\` (Lab DMZ Boundary)  
 **Profile:** \`host_discovery\` + \`service_banner\`  
 **Scanner Engine:** Nmap 7.95 (SYN Stealth)  
 
 ---
 
 ## Executive Summary
-Active network discovery completed against the approved boundary \`10.0.0.0/24\`. All scans were bounded within authorized CIDR boundaries per multi-tenant scope definitions.
+Active network discovery completed against the approved boundary \`198.51.100.0/24\`. All scans were bounded within authorized CIDR boundaries per multi-tenant scope definitions.
 
 - **Total IPs Scanned:** 254
 - **Live Hosts Discovered:** 3
 - **Exposed Open Ports:** 6
-- **Highest Criticality Asset:** \`srv-app-core.sec.local\` (10.0.0.12, CROWN_JEWEL)
+- **Highest Criticality Asset:** \`srv-app-core.sec.local\` (198.51.100.12, CROWN_JEWEL)
 
 ---
 
@@ -51,14 +51,14 @@ Active network discovery completed against the approved boundary \`10.0.0.0/24\`
 
 | Hostname | IP Address | MAC Address | OS Fingerprint | Open Ports / Banners |
 |---|---|---|---|---|
-| \`srv-app-core.sec.local\` | \`10.0.0.12\` | \`00:1a:2b:3c:4d:5e\` | Ubuntu Linux 24.04 LTS | 21/tcp (vsftpd 2.3.4), 22/tcp (OpenSSH 9.6p1) |
-| \`operator-station.soc.local\` | \`10.0.0.44\` | \`00:1a:2b:3c:4d:9a\` | macOS Sonoma 14.6 | 22/tcp (OpenSSH 9.4) |
-| \`gw-perimeter.dmz.local\` | \`10.0.0.254\` | \`00:1a:2b:3c:4d:ff\` | FreeBSD 14 / pfSense | 80/tcp (pfSense WebGUI), 443/tcp (pfSense WebGUI) |
+| \`srv-app-core.sec.local\` | \`198.51.100.12\` | \`00-1A-2B-3C-4D-5E\` | Ubuntu Linux 24.04 LTS | 21/tcp (vsftpd 2.3.4), 22/tcp (OpenSSH 9.6p1) |
+| \`operator-station.soc.local\` | \`198.51.100.44\` | \`00-1A-2B-3C-4D-9A\` | macOS Sonoma 14.6 | 22/tcp (OpenSSH 9.4) |
+| \`gw-perimeter.dmz.local\` | \`198.51.100.254\` | \`00-1A-2B-3C-4D-FF\` | FreeBSD 14 / pfSense | 80/tcp (pfSense WebGUI), 443/tcp (pfSense WebGUI) |
 
 ---
 
 ## Findings & Risk Corroboration
-1. **Unencrypted FTP Exposure:** Port 21 open on \`10.0.0.12\` with banner matching vulnerable vsftpd.
+1. **Unencrypted FTP Exposure:** Port 21 open on \`198.51.100.12\` with banner matching vulnerable vsftpd.
 2. **Attack Path Risk:** Digital twin lateral movement identifies port 21 as entry point for ingress compromise.
 3. **Recommended Action:** Execute dynamic firewall block (\`fw_block\`) on port 21 via automated Defense module.`,
   },
@@ -69,22 +69,22 @@ Active network discovery completed against the approved boundary \`10.0.0.0/24\`
     generatedAt: '2026-11-19 14:35:11 UTC',
     author: 'SOC Lead & Defense Automator',
     format: 'Markdown / HTML',
-    summary: 'Investigation of vertical port scan targeting 10.0.0.12 from external attacker 192.168.1.105 with dynamic host shun containment.',
+    summary: 'Investigation of vertical port scan targeting 198.51.100.12 from external attacker 203.0.113.105 with dynamic host shun containment.', // cgx-allow: sample report template
     content: `# CYBERGUARD-X — Incident Response & Forensics Report
 
 **Incident ID:** \`INC-20261119-001\`  
 **Severity:** CRITICAL  
 **Status:** RESOLVED (Contained & Rolled Back)  
 **Detected At:** 2026-11-19T14:20:11.204Z  
-**Target Asset:** \`srv-app-core.sec.local\` (\`10.0.0.12\`, Crown Jewel)  
-**Attacker IP:** \`192.168.1.105\`  
+**Target Asset:** \`srv-app-core.sec.local\` (\`198.51.100.12\`, Crown Jewel)  
+**Attacker IP:** \`203.0.113.105\`  
 **Detection Rule:** \`RULE_PORT_SCAN_VERTICAL\` (\`NIDS-001\`)  
 **MITRE ATT&CK:** \`T1046\` (Network Service Discovery)  
 
 ---
 
 ## Incident Narrative
-At \`14:20:11.204Z\`, the wire NIDS capture sensor detected a burst of 15 TCP SYN packets from external host \`192.168.1.105\` targeting distinct ports on crown jewel server \`10.0.0.12\` within a 4.2-second window.
+At \`14:20:11.204Z\`, the wire NIDS capture sensor detected a burst of 15 TCP SYN packets from external host \`203.0.113.105\` targeting distinct ports on crown jewel server \`198.51.100.12\` within a 4.2-second window.
 
 The event matched signature \`RULE_PORT_SCAN_VERTICAL\` with 96% confidence score.
 
@@ -93,10 +93,10 @@ The event matched signature \`RULE_PORT_SCAN_VERTICAL\` with 96% confidence scor
 ## Evidence Trail
 - **Packet Capture:** \`lab/captures/vertical_scan_demo.pcap\`
 - **Raw BPF Flow Records:**
-  - \`14:20:11.204\`: \`192.168.1.105:54101 -> 10.0.0.12:21\` [TCP SYN, 60 bytes]
-  - \`14:20:11.248\`: \`192.168.1.105:54102 -> 10.0.0.12:22\` [TCP SYN, 60 bytes]
-  - \`14:20:11.291\`: \`192.168.1.105:54103 -> 10.0.0.12:80\` [TCP SYN, 60 bytes]
-  - \`14:20:11.335\`: \`192.168.1.105:54104 -> 10.0.0.12:443\` [TCP SYN, 60 bytes]
+  - \`14:20:11.204\`: \`203.0.113.105:54101 -> 198.51.100.12:21\` [TCP SYN, 60 bytes]
+  - \`14:20:11.248\`: \`203.0.113.105:54102 -> 198.51.100.12:22\` [TCP SYN, 60 bytes]
+  - \`14:20:11.291\`: \`203.0.113.105:54103 -> 198.51.100.12:80\` [TCP SYN, 60 bytes]
+  - \`14:20:11.335\`: \`203.0.113.105:54104 -> 198.51.100.12:443\` [TCP SYN, 60 bytes]
 
 ---
 
@@ -104,8 +104,8 @@ The event matched signature \`RULE_PORT_SCAN_VERTICAL\` with 96% confidence scor
 1. **Four-Eyes Approval Enforced:**
    - **Requester:** Operator (\`analyst@democorp.local\`)
    - **Approver:** Lead (\`lead@democorp.local\`)
-2. **Action Applied:** Dynamic Host Shun (\`fw_block\` with TTL 15m) dropping inbound traffic from \`192.168.1.105\`.
-3. **Verification:** Live traffic re-probe confirmed packets from \`192.168.1.105\` dropped at perimeter pfSense gateway.
+2. **Action Applied:** Dynamic Host Shun (\`fw_block\` with TTL 15m) dropping inbound traffic from \`203.0.113.105\`.
+3. **Verification:** Live traffic re-probe confirmed packets from \`203.0.113.105\` dropped at perimeter pfSense gateway.
 4. **Lifecycle:** TTL auto-expired cleanly at \`14:35:11Z\` and transitioned to \`ROLLED_BACK\`.
 5. **Audit Trail:** Immutable audit log records \`DEFENSE_ACTION_APPROVED\` and \`DEFENSE_ACTION_ROLLED_BACK\`.`,
   },

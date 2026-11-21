@@ -24,7 +24,7 @@ const SAMPLE_JOBS: JobItem[] = [
   {
     id: 'job-f1a28c30-9b41-4771',
     type: 'discovery_scan_host_discovery',
-    payload: { target: '10.0.0.0/24', profile: 'HOST_DISCOVERY' },
+    payload: { target: '10.0.0.0/24', profile: 'HOST_DISCOVERY' }, // cgx-allow: sample job template
     status: 'COMPLETED',
     attempts: 1,
     max_attempts: 3,
@@ -48,7 +48,7 @@ const SAMPLE_JOBS: JobItem[] = [
   {
     id: 'job-4b33c190-7a11-4890',
     type: 'digital_twin_lateral_path_synthesis',
-    payload: { crown_jewel_id: '10.0.0.12', max_depth: 4 },
+    payload: { crown_jewel_id: '10.0.0.12', max_depth: 4 }, // cgx-allow: sample job template
     status: 'COMPLETED',
     attempts: 1,
     max_attempts: 3,
@@ -120,7 +120,7 @@ export const JobsView: React.FC<Props> = ({ organizationId, getIdToken }) => {
     setEnqueuing(type)
     setTimeout(() => {
       const newJob: JobItem = {
-        id: `job-${Math.random().toString(36).substring(2, 10)}-manual`,
+        id: `job-${Date.now().toString(36)}-${jobs.length + 1}-manual`,
         type,
         payload: { triggered_by: 'soc_operator', environment: 'production' },
         status: 'RUNNING',

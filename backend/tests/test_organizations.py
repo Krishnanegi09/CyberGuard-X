@@ -10,7 +10,6 @@ from backend.app.db.models.users import User
 from backend.app.db.session import engine
 from backend.app.main import app
 
-
 EXPECTED_PERMISSIONS = {
     "organization.read",
     "organization.update",

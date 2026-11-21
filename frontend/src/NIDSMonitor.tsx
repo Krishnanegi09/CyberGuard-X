@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   X,
   Lock,
+  Check,
 } from 'lucide-react'
 import {
   BackendRequestError,
@@ -91,6 +92,13 @@ export default function NIDSMonitor({
   const [searchQuery, setSearchQuery] = useState<string>('')
   const latestPacketIdRef = useRef<number>(0)
   const tableContainerRef = useRef<HTMLDivElement>(null)
+
+  // Packet ingestion rate & UI feedback states
+  const [packetRate, setPacketRate] = useState<number>(0)
+  const prevCountRef = useRef<number>(0)
+  const prevTimeRef = useRef<number>(0)
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null)
+  const [copiedPacketId, setCopiedPacketId] = useState<number | null>(null)
 
   // Auto-scroll Wireshark list to bottom when new packets arrive
   useEffect(() => {
@@ -183,12 +191,32 @@ export default function NIDSMonitor({
     if (!isValidUUID(organizationId) || !isValidUUID(activeScopeId)) return
     try {
       const token = await getIdToken()
-      const [monitoring, alertList] = await Promise.all([
+      const [monitoring, alertList, scopeList] = await Promise.all([
         getMonitoringStatus(organizationId, activeScopeId, token),
         getNIDSAlerts(organizationId, activeScopeId, token),
+        getNetworkScopes(organizationId, token).catch(() => null),
       ])
       setStats(monitoring)
       setAlerts(alertList.items)
+      if (scopeList && Array.isArray(scopeList)) {
+        setScopes(scopeList)
+      }
+
+      // Calculate instantaneous arrival rate
+      const now = Date.now()
+      if (prevTimeRef.current === 0) {
+        prevTimeRef.current = now
+        prevCountRef.current = monitoring.captured_packets
+      } else {
+        const dt = (now - prevTimeRef.current) / 1000
+        if (dt >= 1.5) {
+          const delta = Math.max(0, monitoring.captured_packets - prevCountRef.current)
+          setPacketRate(Math.round(delta / dt))
+          prevCountRef.current = monitoring.captured_packets
+          prevTimeRef.current = now
+        }
+      }
+
       setError(null)
     } catch (cause) {
       setError(
@@ -264,12 +292,15 @@ export default function NIDSMonitor({
       if (stats.status === 'running') {
         const next = await stopMonitoring(organizationId, activeScopeId, token)
         setStats(next)
+        setPacketRate(0)
       } else {
         latestPacketIdRef.current = 0
         setPackets([])
         setAnomalies([])
         const next = await startMonitoring(organizationId, activeScopeId, networkInterface, token)
         setStats(next)
+        prevCountRef.current = 0
+        prevTimeRef.current = Date.now()
       }
     } catch (cause) {
       setError(
@@ -310,13 +341,49 @@ export default function NIDSMonitor({
     setSelectedPacket(null)
   }
 
+  // Active selected scope entity
+  const currentScope = useMemo(
+    () => scopes.find((s) => s.id === activeScopeId),
+    [scopes, activeScopeId]
+  )
+
+  // Scope option formatter: Keep select clean and compact
+  const getScopeOptionLabel = (s: NetworkScope) => {
+    if (!s.cidr_ranges || s.cidr_ranges.length === 0) return `${s.name} (No CIDRs)`
+    if (s.cidr_ranges.length === 1) return `${s.name} (${s.cidr_ranges[0]})`
+    return `${s.name} (${s.cidr_ranges[0]} +${s.cidr_ranges.length - 1} more)`
+  }
+
+  // Protocol frequency counts in current buffer
+  const protocolCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      ALL: packets.length,
+      TCP: 0,
+      UDP: 0,
+      DNS: 0,
+      TLS: 0,
+      HTTP: 0,
+      ANOMALIES: 0,
+    }
+    for (const p of packets) {
+      if (p.is_anomaly) counts.ANOMALIES++
+      const proto = p.protocol.toUpperCase()
+      if (proto.includes('DNS')) counts.DNS++
+      else if (proto.includes('TLS')) counts.TLS++
+      else if (proto.includes('HTTP')) counts.HTTP++
+      else if (proto === 'UDP') counts.UDP++
+      else if (proto === 'TCP') counts.TCP++
+    }
+    return counts
+  }, [packets])
+
   // Filter packets based on protocol pill and search text
   const filteredPackets = useMemo(() => {
     return packets.filter((p) => {
       if (protocolFilter !== 'ALL') {
         if (protocolFilter === 'ANOMALIES') {
           if (!p.is_anomaly) return false
-        } else if (p.protocol.toUpperCase() !== protocolFilter) {
+        } else if (!p.protocol.toUpperCase().includes(protocolFilter)) {
           return false
         }
       }
@@ -340,33 +407,19 @@ export default function NIDSMonitor({
       {/* NIDS Header */}
       <div className="nids-header">
         <div className="nids-header-copy">
-          <h2>Live Wire NIDS Sensor & Packet Stream</h2>
+          <h2>Live Wire NIDS Sensor &amp; Packet Stream</h2>
           <p className="nids-description">
             Scope-bound wire-level network telemetry with passive link-layer inspection, Wireshark-grade frame decoding, and real-time signature threat detection.
           </p>
         </div>
 
-        <div className="nids-header-right" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="nids-header-right">
           <button
             type="button"
-            className="btn-discovery-refresh"
+            className="btn-nids-refresh"
             onClick={() => void refresh()}
             disabled={busy}
             title="Refresh NIDS telemetry and stream metrics"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              height: '32px',
-              padding: '0 12px',
-              borderRadius: '6px',
-              background: 'var(--bg-surface-elevated)',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-primary)',
-              fontSize: '12px',
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
           >
             <RefreshCw size={13} className={busy ? 'spinning' : ''} />
             <span>Refresh</span>
@@ -391,9 +444,29 @@ export default function NIDSMonitor({
               ? `Listening on device [${stats.interface ?? networkInterface}]`
               : 'Select network interface and initialize packet ingestion session.'}
           </span>
+
+          {/* Active Scope CIDRs Badge Bar */}
+          {currentScope && currentScope.cidr_ranges.length > 0 && (
+            <div className="nids-scope-cidr-tags">
+              <span className="nids-cidr-label">BPF Scope:</span>
+              {currentScope.cidr_ranges.slice(0, 4).map((c) => (
+                <span key={c} className="nids-cidr-pill" title={c}>
+                  {c}
+                </span>
+              ))}
+              {currentScope.cidr_ranges.length > 4 && (
+                <span
+                  className="nids-cidr-pill more"
+                  title={currentScope.cidr_ranges.slice(4).join(', ')}
+                >
+                  +{currentScope.cidr_ranges.length - 4} more
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="nids-control-actions" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div className="nids-control-actions">
           {/* Scope Dropdown */}
           {scopes.length > 0 && (
             <div className="interface-input-wrap">
@@ -406,10 +479,11 @@ export default function NIDSMonitor({
                 value={activeScopeId}
                 onChange={(e) => setActiveScopeId(e.target.value)}
                 disabled={isRunning}
+                title="Select authorized scope"
               >
                 {scopes.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} ({s.cidr_ranges.join(', ')})
+                    {getScopeOptionLabel(s)}
                   </option>
                 ))}
               </select>
@@ -418,25 +492,16 @@ export default function NIDSMonitor({
 
           {/* Device Dropdown scanning all available options */}
           <div className="interface-input-wrap">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            <div className="interface-input-label-row">
               <label className="interface-input-label" htmlFor="nids-iface-select">
-                Device ({availableInterfaces.length} scanned)
+                Device ({availableInterfaces.length})
               </label>
               <button
                 type="button"
+                className="btn-iface-scan"
                 onClick={() => void fetchInterfaces()}
                 disabled={busy || scanningIfaces || isRunning}
-                title="Scan all network interfaces on this machine"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--accent-cyan)',
-                  cursor: isRunning ? 'not-allowed' : 'pointer',
-                  padding: '0 2px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  opacity: isRunning ? 0.5 : 1,
-                }}
+                title="Rescan network interface devices on this machine"
               >
                 <RefreshCw size={11} className={scanningIfaces ? 'spinning' : ''} />
               </button>
@@ -475,6 +540,14 @@ export default function NIDSMonitor({
         </div>
       </div>
 
+      {/* Action Toast Feedback */}
+      {actionFeedback && (
+        <div className="nids-action-toast" role="status">
+          <Check size={14} />
+          <span>{actionFeedback}</span>
+        </div>
+      )}
+
       {error && (
         <div className="callout-error" role="alert">
           <AlertTriangle size={15} />
@@ -484,28 +557,45 @@ export default function NIDSMonitor({
 
       {/* 4-Metric Grid */}
       <div className="nids-metrics-grid">
-        <article className="nids-metric-card">
+        <article className="nids-metric-card card-captured">
           <div className="nids-metric-header">
-            <span className="nids-metric-label">Packets Captured</span>
-            <Activity size={15} className="text-cyan" />
+            <span className="nids-metric-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Activity size={13} style={{ color: '#00f0ff' }} />
+              Packets Captured
+            </span>
+            <span className={`nids-metric-badge ${isRunning ? 'live' : ''}`}>
+              {isRunning ? (packetRate > 0 ? `${packetRate} pkts/s` : 'Active stream') : 'Offline'}
+            </span>
           </div>
           <span className="nids-metric-value">{stats.captured_packets.toLocaleString()}</span>
           <span className="nids-metric-sub">Raw link-layer frames observed</span>
         </article>
 
-        <article className="nids-metric-card">
+        <article className="nids-metric-card card-processed">
           <div className="nids-metric-header">
-            <span className="nids-metric-label">Packets Processed</span>
-            <Cpu size={15} className="text-cyan" />
+            <span className="nids-metric-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Cpu size={13} style={{ color: '#38bdf8' }} />
+              Packets Processed
+            </span>
+            <span className="nids-metric-badge">
+              {stats.captured_packets > 0
+                ? `${Math.min(100, Math.round((stats.processed_packets / stats.captured_packets) * 100))}% Decoded`
+                : '100% Ready'}
+            </span>
           </div>
           <span className="nids-metric-value">{stats.processed_packets.toLocaleString()}</span>
           <span className="nids-metric-sub">Decoded through inspection rules</span>
         </article>
 
-        <article className="nids-metric-card">
+        <article className={`nids-metric-card card-alerts ${activeAlerts > 0 ? 'has-alerts' : ''}`}>
           <div className="nids-metric-header">
-            <span className="nids-metric-label">Active Alerts</span>
-            <Radio size={15} className={activeAlerts > 0 ? 'text-critical' : ''} />
+            <span className="nids-metric-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Radio size={13} style={{ color: activeAlerts > 0 ? '#f43f5e' : '#10b981' }} />
+              Active Alerts
+            </span>
+            <span className={`nids-metric-badge ${activeAlerts > 0 ? 'critical' : 'clean'}`}>
+              {activeAlerts > 0 ? `${activeAlerts} Threat${activeAlerts > 1 ? 's' : ''}` : 'Clean'}
+            </span>
           </div>
           <span className={`nids-metric-value ${activeAlerts > 0 ? 'attention' : ''}`}>
             {activeAlerts}
@@ -513,10 +603,15 @@ export default function NIDSMonitor({
           <span className="nids-metric-sub">{alerts.length} total event detections</span>
         </article>
 
-        <article className="nids-metric-card">
+        <article className="nids-metric-card card-drops">
           <div className="nids-metric-header">
-            <span className="nids-metric-label">Queue Drops</span>
-            <Layers size={15} />
+            <span className="nids-metric-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Layers size={13} style={{ color: '#a855f7' }} />
+              Queue Drops
+            </span>
+            <span className="nids-metric-badge">
+              {stats.dropped_packets === 0 ? '0% Loss' : `${stats.dropped_packets} Dropped`}
+            </span>
           </div>
           <span className="nids-metric-value">{stats.dropped_packets.toLocaleString()}</span>
           <span className="nids-metric-sub">{stats.queue_size} frames currently buffered</span>
@@ -541,7 +636,7 @@ export default function NIDSMonitor({
               <input
                 type="text"
                 className="wireshark-filter-input"
-                placeholder="Apply display filter (ip, port, proto, tcp.flags)..."
+                placeholder="Filter IP, port, flags..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -549,7 +644,8 @@ export default function NIDSMonitor({
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}
+                  style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'inline-flex' }}
+                  title="Clear filter"
                 >
                   <X size={12} />
                 </button>
@@ -558,22 +654,26 @@ export default function NIDSMonitor({
 
             {/* Protocol Quick-Filter Chips */}
             <div className="wireshark-protocol-pills">
-              {['ALL', 'TCP', 'UDP', 'DNS', 'TLS', 'HTTP', 'ANOMALIES'].map((proto) => (
-                <button
-                  key={proto}
-                  type="button"
-                  className={`ws-proto-btn ${protocolFilter === proto ? 'active' : ''}`}
-                  onClick={() => setProtocolFilter(proto)}
-                >
-                  {proto}
-                </button>
-              ))}
+              {(['ALL', 'TCP', 'UDP', 'DNS', 'TLS', 'HTTP', 'ANOMALIES'] as const).map((proto) => {
+                const count = protocolCounts[proto] || 0
+                return (
+                  <button
+                    key={proto}
+                    type="button"
+                    className={`ws-proto-btn ${protocolFilter === proto ? 'active' : ''} ${proto === 'ANOMALIES' ? 'proto-anomaly' : ''}`}
+                    onClick={() => setProtocolFilter(proto)}
+                  >
+                    <span>{proto}</span>
+                    {count > 0 && <span className="ws-proto-badge">{count}</span>}
+                  </button>
+                )
+              })}
             </div>
           </div>
 
           <div className="wireshark-toolbar-right">
-            <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
-              Showing {filteredPackets.length} / {packets.length} frames
+            <span className="ws-frames-pill">
+              <strong>{filteredPackets.length}</strong> / {packets.length} frames
             </span>
 
             <button
@@ -583,13 +683,14 @@ export default function NIDSMonitor({
               title={autoScroll ? 'Click to pause auto-scroll' : 'Click to resume auto-scroll'}
             >
               {autoScroll ? <Pause size={12} /> : <Play size={12} />}
-              <span>{autoScroll ? 'Auto-Scroll ON' : 'Paused'}</span>
+              <span>{autoScroll ? 'Auto-Scroll' : 'Paused'}</span>
             </button>
 
             <button
               type="button"
               className="ws-tool-btn"
               onClick={clearBuffer}
+              disabled={packets.length === 0}
               title="Clear current packet buffer"
             >
               <Trash2 size={12} />
@@ -603,27 +704,43 @@ export default function NIDSMonitor({
           <table className="wireshark-table">
             <thead>
               <tr>
-                <th style={{ width: '60px' }}>No.</th>
-                <th style={{ width: '100px' }}>Time</th>
-                <th style={{ width: '180px' }}>Source</th>
-                <th style={{ width: '180px' }}>Destination</th>
-                <th style={{ width: '85px' }}>Protocol</th>
+                <th style={{ width: '55px' }}>No.</th>
+                <th style={{ width: '85px' }}>Time</th>
+                <th style={{ width: '165px' }}>Source</th>
+                <th style={{ width: '165px' }}>Destination</th>
+                <th style={{ width: '75px' }}>Protocol</th>
                 <th style={{ width: '65px' }}>Length</th>
-                <th style={{ width: '110px' }}>Flags</th>
-                <th>Info</th>
+                <th style={{ width: '90px' }}>Flags</th>
+                <th style={{ minWidth: '220px' }}>Info</th>
               </tr>
             </thead>
             <tbody>
               {filteredPackets.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px 10px', color: '#64748b' }}>
-                    {isRunning
-                      ? 'Waiting for network frames matching active filter...'
-                      : 'Sensor is idle. Select device and click "Start Capture" to begin observing live traffic.'}
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px 16px', color: '#64748b' }}>
+                    {isRunning ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontWeight: 500 }}>
+                          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#00D4FF', boxShadow: '0 0 8px #00D4FF' }} />
+                          Waiting for network frames matching active filter...
+                        </div>
+                        {stats.captured_packets === 0 && (
+                          <div style={{ fontSize: '12px', maxWidth: '600px', margin: '4px auto 0', color: '#94a3b8', lineHeight: 1.6, background: 'rgba(15, 23, 42, 0.6)', padding: '12px 18px', borderRadius: '8px', border: '1px solid rgba(0, 212, 255, 0.15)', textAlign: 'left' }}>
+                            <div style={{ color: '#00D4FF', fontWeight: 600, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <ShieldAlert size={14} />
+                              Scope Isolation Active (Kernel BPF Filter)
+                            </div>
+                            CYBERGUARD-X strictly confines packet sniffing to approved CIDRs of the active scope. If your device is connected to a cellular hotspot or different subnet, or if you want to inspect local frontend/API traffic, add that CIDR in <strong style={{ color: '#f1f5f9' }}>Scopes &amp; Scans</strong> or select loopback interface <code style={{ color: '#00D4FF', background: 'rgba(0,212,255,0.1)', padding: '1px 5px', borderRadius: 4 }}>lo0</code>.
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      'Sensor is idle. Select device and click "Start Capture" to begin observing live traffic.'
+                    )}
                   </td>
                 </tr>
               ) : (
-                filteredPackets.map((pkt) => {
+                filteredPackets.map((pkt, idx) => {
                   const isSelected = selectedPacket?.id === pkt.id
                   const protoLower = pkt.protocol.toLowerCase()
                   const rowClass = pkt.is_anomaly
@@ -640,14 +757,14 @@ export default function NIDSMonitor({
 
                   return (
                     <tr
-                      key={pkt.id}
+                      key={`${pkt.id}-${idx}`}
                       className={`ws-row ${rowClass} ${isSelected ? 'selected' : ''}`}
                       onClick={() => setSelectedPacket(isSelected ? null : pkt)}
                     >
                       <td>{pkt.id}</td>
-                      <td>+{pkt.time_rel.toFixed(3)}s</td>
-                      <td title={pkt.source}>{pkt.source}</td>
-                      <td title={pkt.destination}>{pkt.destination}</td>
+                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>+{pkt.time_rel.toFixed(2)}s</td>
+                      <td title={pkt.source} className="ws-col-addr">{formatAddress(pkt.source)}</td>
+                      <td title={pkt.destination} className="ws-col-addr">{formatAddress(pkt.destination)}</td>
                       <td>
                         <span className={`ws-badge-proto ${pkt.is_anomaly ? 'anomaly' : protoLower}`}>
                           {pkt.protocol}
@@ -671,61 +788,84 @@ export default function NIDSMonitor({
         {selectedPacket && (
           <div className="packet-inspector">
             <div className="packet-inspector-header">
-              <span className="packet-inspector-title">
+              <div className="packet-inspector-title">
                 <Terminal size={14} />
-                <span>PACKET INSPECTOR: FRAME #{selectedPacket.id} [{selectedPacket.protocol}]</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setSelectedPacket(null)}
-                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
-              >
-                <X size={14} />
-              </button>
+                <span>Packet #{selectedPacket.id} Inspection</span>
+                <span className={`ws-badge-proto ${selectedPacket.is_anomaly ? 'anomaly' : selectedPacket.protocol.toLowerCase()}`}>
+                  {selectedPacket.protocol}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn-inspector-action"
+                  onClick={() => setSearchQuery(selectedPacket.source_ip)}
+                  title="Filter packet table by this source IP"
+                >
+                  Filter by Source IP
+                </button>
+                <button
+                  type="button"
+                  className="btn-inspector-action"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(JSON.stringify(selectedPacket, null, 2))
+                    setCopiedPacketId(selectedPacket.id)
+                    setActionFeedback(`Copied packet #${selectedPacket.id} JSON to clipboard.`)
+                    setTimeout(() => {
+                      setCopiedPacketId(null)
+                      setActionFeedback(null)
+                    }, 2500)
+                  }}
+                  title="Copy packet details as JSON"
+                >
+                  {copiedPacketId === selectedPacket.id ? 'Copied!' : 'Copy JSON'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-inspector-close"
+                  onClick={() => setSelectedPacket(null)}
+                  title="Close inspector"
+                >
+                  <X size={14} />
+                </button>
+              </div>
             </div>
 
             <div className="packet-inspector-grid">
               <div className="inspector-section">
-                <div className="inspector-section-title">Frame Metadata</div>
+                <div className="inspector-section-title">Frame &amp; Time Metadata</div>
                 <div className="inspector-field">
-                  <span className="inspector-field-label">Frame Number:</span>
-                  <span className="inspector-field-value">{selectedPacket.id}</span>
+                  <span className="inspector-field-label">Relative Arrival:</span>
+                  <span className="inspector-field-value">+{selectedPacket.time_rel.toFixed(4)}s</span>
                 </div>
                 <div className="inspector-field">
                   <span className="inspector-field-label">Timestamp:</span>
                   <span className="inspector-field-value">{selectedPacket.time}</span>
                 </div>
                 <div className="inspector-field">
-                  <span className="inspector-field-label">Frame Length:</span>
+                  <span className="inspector-field-label">Wire Frame Length:</span>
                   <span className="inspector-field-value">{selectedPacket.length} bytes</span>
                 </div>
                 <div className="inspector-field">
-                  <span className="inspector-field-label">Relative Offset:</span>
-                  <span className="inspector-field-value">+{selectedPacket.time_rel}s</span>
+                  <span className="inspector-field-label">Inspection Interface:</span>
+                  <span className="inspector-field-value">{stats.interface ?? networkInterface}</span>
                 </div>
               </div>
 
               <div className="inspector-section">
-                <div className="inspector-section-title">Network Layer (IP)</div>
+                <div className="inspector-section-title">Flow &amp; Transport Layer</div>
                 <div className="inspector-field">
                   <span className="inspector-field-label">Source IP:</span>
                   <span className="inspector-field-value">{selectedPacket.source_ip}</span>
                 </div>
                 <div className="inspector-field">
-                  <span className="inspector-field-label">Destination IP:</span>
-                  <span className="inspector-field-value">{selectedPacket.destination_ip}</span>
-                </div>
-                <div className="inspector-field">
-                  <span className="inspector-field-label">Protocol:</span>
-                  <span className="inspector-field-value">{selectedPacket.protocol}</span>
-                </div>
-              </div>
-
-              <div className="inspector-section">
-                <div className="inspector-section-title">Transport Layer</div>
-                <div className="inspector-field">
                   <span className="inspector-field-label">Source Port:</span>
                   <span className="inspector-field-value">{selectedPacket.source_port ?? 'N/A'}</span>
+                </div>
+                <div className="inspector-field">
+                  <span className="inspector-field-label">Destination IP:</span>
+                  <span className="inspector-field-value">{selectedPacket.destination_ip}</span>
                 </div>
                 <div className="inspector-field">
                   <span className="inspector-field-label">Destination Port:</span>
@@ -740,7 +880,7 @@ export default function NIDSMonitor({
               </div>
 
               <div className="inspector-section">
-                <div className="inspector-section-title">Threat & Anomaly Evaluation</div>
+                <div className="inspector-section-title">Threat &amp; Anomaly Evaluation</div>
                 <div className="inspector-field">
                   <span className="inspector-field-label">Security Verdict:</span>
                   <span
@@ -769,39 +909,39 @@ export default function NIDSMonitor({
       {/* =================================================================== */}
       {/* 2. DEDICATED BOTTOM WINDOW: ANOMALY & INTRUSION PACKETS (NIDS)      */}
       {/* =================================================================== */}
-      <div className="anomalies-bottom-window">
+      <div className={`anomalies-bottom-window ${anomalies.length === 0 ? 'clean-state' : ''}`}>
         <div className="anomalies-header">
           <div className="anomalies-title">
-            <ShieldAlert size={17} />
-            <span>DETECTED THREAT & ANOMALY PACKETS (LINK-LAYER NIDS)</span>
+            <ShieldAlert size={16} />
+            <span>DETECTED THREAT &amp; ANOMALY PACKETS (LINK-LAYER NIDS)</span>
           </div>
           <span className="anomalies-count-tag">
-            {anomalies.length} Flagged Telemetry Events
+            {anomalies.length === 0 ? '0 Anomaly Detections' : `${anomalies.length} Flagged Events`}
           </span>
         </div>
 
         <div className="anomalies-table-container">
           {anomalies.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '36px 20px', color: '#94a3b8' }}>
-              <CheckCircle2 size={22} style={{ color: '#34d399', margin: '0 auto 8px', display: 'block' }} />
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9' }}>
-                No Anomalous Packets Observed
-              </div>
-              <div style={{ fontSize: '11px', color: '#64748b', marginTop: 4 }}>
-                Real-time packets passing through inspection filters strictly conform to baseline security signatures.
+            <div className="anomalies-compact-empty">
+              <div className="anomalies-empty-indicator">
+                <CheckCircle2 size={16} style={{ color: '#34d399' }} />
+                <span className="anomalies-empty-title">All Monitored Traffic Compliant</span>
+                <span className="anomalies-empty-desc">
+                  0 signature violations detected across current BPF scope.
+                </span>
               </div>
             </div>
           ) : (
             <table className="anomalies-table">
               <thead>
                 <tr>
-                  <th style={{ width: '80px' }}>Packet #</th>
-                  <th style={{ width: '90px' }}>Time</th>
-                  <th style={{ width: '180px' }}>Rule Signature</th>
-                  <th style={{ width: '90px' }}>Severity</th>
-                  <th style={{ width: '220px' }}>Offender ➔ Target</th>
-                  <th>Violation Evidence & Description</th>
-                  <th style={{ width: '130px', textAlign: 'right' }}>Mitigation</th>
+                  <th style={{ width: '65px' }}>Packet #</th>
+                  <th style={{ width: '75px' }}>Time</th>
+                  <th style={{ width: '145px' }}>Rule Signature</th>
+                  <th style={{ width: '75px' }}>Severity</th>
+                  <th style={{ width: '185px' }}>Offender ➔ Target</th>
+                  <th style={{ minWidth: '200px' }}>Violation Evidence &amp; Description</th>
+                  <th style={{ width: '115px', textAlign: 'right' }}>Mitigation</th>
                 </tr>
               </thead>
               <tbody>
@@ -810,37 +950,29 @@ export default function NIDSMonitor({
                     <td>#{anom.packet_id}</td>
                     <td>{anom.time}</td>
                     <td>
-                      <span className="anomaly-rule-tag">{anom.name}</span>
+                      <span className="anomaly-rule-tag" title={anom.name}>{anom.name}</span>
                     </td>
                     <td>
                       <span className={`nids-severity-tag ${anom.severity.toLowerCase()}`}>
                         {anom.severity}
                       </span>
                     </td>
-                    <td>
-                      <span style={{ color: '#fda4af' }}>{anom.source}</span>
-                      <span style={{ color: '#64748b', margin: '0 6px' }}>➔</span>
-                      <span>{anom.destination}</span>
+                    <td title={`${anom.source} ➔ ${anom.destination}`}>
+                      <span style={{ color: '#fda4af' }}>{formatAddress(anom.source)}</span>
+                      <span style={{ color: '#64748b', margin: '0 4px' }}>➔</span>
+                      <span>{formatAddress(anom.destination)}</span>
                     </td>
                     <td>
-                      <div className="anomaly-desc-text">{anom.description}</div>
-                      <div className="anomaly-evidence-text">{anom.evidence}</div>
+                      <div className="anomaly-desc-text" title={anom.description}>{anom.description}</div>
+                      <div className="anomaly-evidence-text" title={anom.evidence}>{anom.evidence}</div>
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <button
                         type="button"
-                        className="btn-nids-resolve"
-                        onClick={() => alert(`Applied defensive host shun on ${anom.source}.`)}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          fontSize: '11px',
-                          height: '26px',
-                          padding: '0 8px',
-                          background: 'rgba(244, 63, 94, 0.15)',
-                          borderColor: 'rgba(244, 63, 94, 0.4)',
-                          color: '#fda4af',
+                        className="btn-shun-action"
+                        onClick={() => {
+                          setActionFeedback(`Defensive host shun request staged for offender ${anom.source}. Verification logged.`)
+                          setTimeout(() => setActionFeedback(null), 4000)
                         }}
                       >
                         <Lock size={11} />
@@ -858,7 +990,7 @@ export default function NIDSMonitor({
       {/* Historical Signature & Persistent Alerts Feed */}
       <div className="nids-alerts-card">
         <div className="nids-alerts-heading">
-          <h3 className="nids-alerts-title">Historical Signature & Intrusion Alerts</h3>
+          <h3 className="nids-alerts-title">Historical Signature &amp; Intrusion Alerts</h3>
           <span className="records-count-pill">{alerts.length} Events Recorded</span>
         </div>
 
@@ -906,8 +1038,9 @@ export default function NIDSMonitor({
                         type="button"
                         className="btn-nids-resolve"
                         onClick={() => void resolve(alert)}
+                        disabled={busy}
                       >
-                        Acknowledge
+                        Resolve
                       </button>
                     )}
                   </div>

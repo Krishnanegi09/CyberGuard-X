@@ -1,4 +1,5 @@
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from backend.app.api.deps import require_organization_permission

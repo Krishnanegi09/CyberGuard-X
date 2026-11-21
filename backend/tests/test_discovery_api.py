@@ -289,7 +289,6 @@ def test_viewer_cannot_start_discovery_scan(
 
     # Create the scope using the actual organization owner.
     # Retrieve the original owner from the organization membership.
-    from backend.app.db.models.access_control import Membership
     from backend.app.db.models.organizations import Organization
 
     db = Session(

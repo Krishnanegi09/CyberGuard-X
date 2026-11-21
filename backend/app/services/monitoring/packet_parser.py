@@ -7,7 +7,6 @@ from scapy.layers.inet import IP, TCP, UDP
 from scapy.layers.inet6 import IPv6
 from scapy.packet import Packet
 
-
 TransportProtocol = Literal["tcp", "udp", "other"]
 
 

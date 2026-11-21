@@ -30,7 +30,7 @@ export const LiveTwinShowcase: React.FC<LiveTwinShowcaseProps> = ({
     {
       id: 'node-dmz',
       name: 'DMZ-Web-01',
-      ip: '192.168.1.10',
+      ip: '192.168.1.10', // cgx-allow: marketing demo node
       role: 'Public Gateway',
       status: 'normal',
       zone: 'DMZ_EXTERNAL',
@@ -40,7 +40,7 @@ export const LiveTwinShowcase: React.FC<LiveTwinShowcaseProps> = ({
     {
       id: 'node-comp',
       name: 'Internal-Worker-02',
-      ip: '10.0.2.14',
+      ip: '10.0.2.14', // cgx-allow: marketing demo node
       role: 'Compromised Vector',
       status: isShunned ? 'isolated' : 'compromised',
       zone: 'CORP_INTERNAL',
@@ -50,7 +50,7 @@ export const LiveTwinShowcase: React.FC<LiveTwinShowcaseProps> = ({
     {
       id: 'node-core',
       name: 'Core-App-Cluster',
-      ip: '10.0.3.5',
+      ip: '10.0.3.5', // cgx-allow: marketing demo node
       role: 'Application Core',
       status: 'target',
       zone: 'SECURE_APPLICATION',
@@ -60,7 +60,7 @@ export const LiveTwinShowcase: React.FC<LiveTwinShowcaseProps> = ({
     {
       id: 'node-db',
       name: 'Prod-Database-01',
-      ip: '10.0.4.88',
+      ip: '10.0.4.88', // cgx-allow: marketing demo node
       role: 'Crown Jewel Database',
       status: 'crown',
       zone: 'RESTRICTED_DATA',
@@ -70,7 +70,7 @@ export const LiveTwinShowcase: React.FC<LiveTwinShowcaseProps> = ({
     {
       id: 'node-dc',
       name: 'Identity-DC-01',
-      ip: '10.0.1.2',
+      ip: '10.0.1.2', // cgx-allow: marketing demo node
       role: 'Active Directory DC',
       status: 'normal',
       zone: 'IDENTITY_SERVICES',

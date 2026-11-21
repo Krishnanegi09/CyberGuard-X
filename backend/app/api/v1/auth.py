@@ -13,7 +13,6 @@ from backend.app.api.deps import (
 from backend.app.db.models.users import User
 from backend.app.schemas.auth import FirebaseSyncRequest, UserPublic
 
-
 router = APIRouter(tags=["Authentication"])
 
 email_adapter = TypeAdapter(EmailStr)

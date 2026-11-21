@@ -23,7 +23,7 @@ export const VideoOverviewModal: React.FC<VideoOverviewModalProps> = ({
       time: '0:00 - 0:28',
       icon: <Terminal size={14} />,
       summary: 'Real-time eBPF passive packet sensor capturing raw network flows within authorized CIDR boundaries.',
-      log: '[SENSOR] Interface en0 in promisc mode. Captured 14,200 pkt/sec without kernel drop. Enforcing CIDR 10.0.0.0/16.',
+      log: '[SENSOR] Interface en0 in promisc mode. Captured 14,200 pkt/sec without kernel drop. Enforcing CIDR 10.0.0.0/16.', // cgx-allow: marketing demo log
     },
     {
       title: '02. Digital Twin Mapping',
@@ -37,14 +37,14 @@ export const VideoOverviewModal: React.FC<VideoOverviewModalProps> = ({
       time: '0:55 - 1:25',
       icon: <Cpu size={14} />,
       summary: 'Simulating lateral movement from compromised internal host to Domain Controller.',
-      log: '[SIM] Executing Dijkstra path traversal: Host 10.0.2.14 -> 10.0.3.5 -> 10.0.4.88. Blast radius calculated: 32%.',
+      log: '[SIM] Executing Dijkstra path traversal: Host 10.0.2.14 -> 10.0.3.5 -> 10.0.4.88. Blast radius calculated: 32%.', // cgx-allow: marketing demo log
     },
     {
       title: '04. Calibrated Response',
       time: '1:26 - 2:00',
       icon: <Shield size={14} />,
       summary: 'Human-approved firewall shun deployment with auto-expiring 15-minute TTL.',
-      log: '[DEFENSE] Four-Eyes approval confirmed by Operator. Deployed iptables DROP rule on 10.0.2.14. TTL 900s active.',
+      log: '[DEFENSE] Four-Eyes approval confirmed by Operator. Deployed iptables DROP rule on 10.0.2.14. TTL 900s active.', // cgx-allow: marketing demo log
     },
   ]
 

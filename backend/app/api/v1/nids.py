@@ -5,14 +5,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.app.api.deps import get_db, require_organization_permission
-from backend.app.db.models.nids_alerts import NIDSAlertRecord
 from backend.app.db.models.network_scopes import NetworkScope
+from backend.app.db.models.nids_alerts import NIDSAlertRecord
 from backend.app.schemas.nids import (
     NIDSAlertList,
     NIDSAlertPublic,
     NIDSAlertStatusUpdate,
 )
-
 
 router = APIRouter(
     prefix="/organizations/{organization_id}/network-scopes/{scope_id}/nids-alerts",

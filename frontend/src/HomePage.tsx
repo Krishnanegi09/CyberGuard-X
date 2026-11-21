@@ -552,11 +552,11 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   // Digital Twin Demonstration Nodes
   const demoNodes = [
-    { id: 'node-dmz', name: 'DMZ-Web-01', ip: '192.168.1.10', zone: 'DMZ_EXTERNAL', status: 'normal', x: 18, y: 65 },
-    { id: 'node-comp', name: 'Internal-Worker-02', ip: '10.0.2.14', zone: 'CORP_INTERNAL', status: 'compromised', x: 38, y: 75 },
-    { id: 'node-core', name: 'Core-App-Cluster', ip: '10.0.3.5', zone: 'SECURE_APPLICATION', status: 'target', x: 58, y: 40 },
-    { id: 'node-db', name: 'Prod-Database-01', ip: '10.0.4.88', zone: 'RESTRICTED_DATA', status: 'crown', x: 78, y: 30 },
-    { id: 'node-dc', name: 'Identity-DC-01', ip: '10.0.1.2', zone: 'IDENTITY_SERVICES', status: 'normal', x: 44, y: 20 },
+    { id: 'node-dmz', name: 'DMZ-Web-01', ip: '192.168.1.10', zone: 'DMZ_EXTERNAL', status: 'normal', x: 18, y: 65 }, // cgx-allow: public marketing demo node
+    { id: 'node-comp', name: 'Internal-Worker-02', ip: '10.0.2.14', zone: 'CORP_INTERNAL', status: 'compromised', x: 38, y: 75 }, // cgx-allow: public marketing demo node
+    { id: 'node-core', name: 'Core-App-Cluster', ip: '10.0.3.5', zone: 'SECURE_APPLICATION', status: 'target', x: 58, y: 40 }, // cgx-allow: public marketing demo node
+    { id: 'node-db', name: 'Prod-Database-01', ip: '10.0.4.88', zone: 'RESTRICTED_DATA', status: 'crown', x: 78, y: 30 }, // cgx-allow: public marketing demo node
+    { id: 'node-dc', name: 'Identity-DC-01', ip: '10.0.1.2', zone: 'IDENTITY_SERVICES', status: 'normal', x: 44, y: 20 }, // cgx-allow: public marketing demo node
   ]
 
   const demoStages = [
@@ -711,9 +711,9 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   // Video Tour Chapters
   const tourChapters = [
-    { title: '01. Wire-Speed Ingestion', time: '0:00 - 0:28', icon: <Terminal size={14} />, log: '[SENSOR] Interface en0 in promisc mode. Captured packet flow inside authorized CIDR 10.0.0.0/16.' },
+    { title: '01. Wire-Speed Ingestion', time: '0:00 - 0:28', icon: <Terminal size={14} />, log: '[SENSOR] Interface en0 in promisc mode. Captured packet flow inside authorized CIDR 10.0.0.0/16.' }, // cgx-allow: public marketing demo log
     { title: '02. Digital Twin Mapping', time: '0:29 - 0:54', icon: <Layers size={14} />, log: '[TWIN] Graph synchronized: 1,284 assets, 3,412 edges. Identified 3 lateral hops to restricted Database.' },
-    { title: '03. Attack Simulation', time: '0:55 - 1:25', icon: <Cpu size={14} />, log: '[SIM] Dijkstra path traversal: Host 10.0.2.14 -> 10.0.3.5 -> 10.0.4.88. Blast radius calculated: 32%.' },
+    { title: '03. Attack Simulation', time: '0:55 - 1:25', icon: <Cpu size={14} />, log: '[SIM] Dijkstra path traversal: Host 10.0.2.14 -> 10.0.3.5 -> 10.0.4.88. Blast radius calculated: 32%.' }, // cgx-allow: public marketing demo log
     { title: '04. Calibrated Response', time: '1:26 - 2:00', icon: <Shield size={14} />, log: '[DEFENSE] Four-Eyes approval confirmed by Operator. Deployed iptables DROP rule with 900s TTL.' },
   ]
 

@@ -19,7 +19,6 @@ from backend.app.schemas.network_scopes import (
     NetworkScopeStatusUpdate,
 )
 
-
 router = APIRouter(
     prefix="/organizations/{organization_id}/network-scopes",
     tags=["Network Scopes"],

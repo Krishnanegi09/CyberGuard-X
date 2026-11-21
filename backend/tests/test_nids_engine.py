@@ -1,8 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
-from backend.app.services.monitoring.packet_parser import PacketObservation
 from backend.app.services.monitoring.nids_engine import NIDSEngine
-
+from backend.app.services.monitoring.packet_parser import PacketObservation
 
 BASE_TIME = datetime(2026, 11, 19, 10, 0, tzinfo=timezone.utc)
 

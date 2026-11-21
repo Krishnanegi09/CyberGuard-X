@@ -1,6 +1,6 @@
 import asyncio
-from dataclasses import asdict
 import json
+from dataclasses import asdict
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -9,12 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.app.api.deps import get_db, require_organization_permission
+from backend.app.core.config import settings
 from backend.app.db.models.network_scopes import NetworkScope, NetworkScopeRange
 from backend.app.schemas.monitoring import MonitoringStart, MonitoringStats
-from backend.app.core.config import settings
 from backend.app.services.monitoring.manager import MonitoringManager
 from backend.app.services.monitoring.nids_alert_persistence import persist_nids_alert
-
 
 router = APIRouter(
     prefix="/organizations/{organization_id}/network-scopes/{scope_id}/monitoring",

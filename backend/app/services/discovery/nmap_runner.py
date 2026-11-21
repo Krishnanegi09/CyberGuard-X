@@ -6,7 +6,6 @@ import subprocess
 import tempfile
 import time
 import xml.etree.ElementTree as ET
-
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,7 +14,6 @@ from backend.app.services.discovery.target_validation import (
     ValidatedTarget,
     build_nmap_arguments,
 )
-
 
 NMAP_BINARY = Path(
     "/Applications/nmap.app/Contents/Resources/bin/nmap"

@@ -6,7 +6,6 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from backend.app.main import app, engine
 
-
 client = TestClient(app)
 
 

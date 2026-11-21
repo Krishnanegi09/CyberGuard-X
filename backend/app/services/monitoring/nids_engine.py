@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from threading import Lock
 from uuid import uuid4
 

@@ -153,8 +153,8 @@ def test_rule_port_sweep_fires():
 def test_dedup_increments_hit_count(phase4_db):
     """Repeated alerts for the same source/target within cooldown are deduplicated."""
     db = phase4_db
-    from backend.app.db.models.organizations import Organization
     from backend.app.db.models.network_scopes import NetworkScope
+    from backend.app.db.models.organizations import Organization
 
     org = Organization(
         name="Dedup Org",

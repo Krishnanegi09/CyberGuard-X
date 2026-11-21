@@ -1,5 +1,3 @@
-import hashlib
-import json
 import logging
 from datetime import datetime, timezone
 
@@ -15,7 +13,6 @@ from backend.app.services.discovery.nmap_runner import run_nmap_scan
 from backend.app.services.discovery.persistence import persist_scan_results
 from backend.app.services.discovery.target_validation import (
     ScanProfile,
-    build_nmap_arguments,
     validate_target,
 )
 

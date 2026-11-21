@@ -1,11 +1,10 @@
+import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Callable, Literal
-import time
 
 from backend.app.services.monitoring.packet_parser import PacketObservation
-
 
 FlowProtocol = Literal["tcp", "udp"]
 

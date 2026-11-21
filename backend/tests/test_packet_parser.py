@@ -8,7 +8,6 @@ from scapy.layers.l2 import ARP, Ether
 
 from backend.app.services.monitoring.packet_parser import parse_packet
 
-
 CAPTURE_TIMESTAMP = 1_700_000_000
 
 
