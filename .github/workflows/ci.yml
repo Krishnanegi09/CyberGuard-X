@@ -82,7 +82,6 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg://postgres:postgrespassword@localhost:5432/cyberguard_x_test
           PYTHONPATH: .
-          JWT_SECRET_KEY: test_secret_key_at_least_32_chars_long_12345
         run: |
           alembic upgrade head
 

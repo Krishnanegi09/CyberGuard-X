@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import sys
 
@@ -9,9 +10,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from backend.app.core.config import settings
 from backend.app.db.base import Base
 import backend.app.db.models  # noqa: F401 - registers all model classes
+
+
+def get_database_url() -> str:
+    url = os.environ.get("DATABASE_URL")
+    if url:
+        return url
+    from backend.app.core.config import settings
+    return settings.database_url
 
 
 config = context.config
@@ -35,7 +43,7 @@ def include_name(name, type_, parent_names):
 
 def run_migrations_offline():
     context.configure(
-        url=settings.database_url,
+        url=get_database_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -50,7 +58,7 @@ def run_migrations_offline():
 
 def run_migrations_online():
     connectable = create_engine(
-        settings.database_url,
+        get_database_url(),
         poolclass=pool.NullPool,
     )
 

@@ -15,5 +15,8 @@ if dotenv_path.exists():
         if k not in os.environ and v is not None:
             os.environ[k] = v
 
-# Ensure test DB is always used in tests
-os.environ["DATABASE_URL"] = "postgresql+psycopg://krishnanegi@localhost:5433/cyberguard_x_restore_test"
+# Ensure test DB is always used in tests if not already specified in environment
+os.environ.setdefault(
+    "DATABASE_URL",
+    "postgresql+psycopg://krishnanegi@localhost:5433/cyberguard_x_restore_test",
+)

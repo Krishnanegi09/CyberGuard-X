@@ -1,0 +1,10 @@
+# Gitleaks configuration for CYBERGUARD-X
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for CI workflows, documentation and test fixtures"
+paths = [
+    '''^\.github/workflows/ci\.yml$''',
+    '''^backend/tests/.*''',
+]
