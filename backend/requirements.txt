@@ -12,3 +12,5 @@ PyJWT
 email-validator
 firebase-admin==7.8.0
 scapy==2.8.0
+joblib
+numpy
